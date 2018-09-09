@@ -46,7 +46,7 @@ LOGGER = logging.getLogger(__name__)
 class WebManager(Manager):
     needle = re.compile("^$"), 0
     cooldown = LRUCache(maxsize=10)
-    timeout = 0
+    timeout = 60
 
     def __init__(self, *args, **kw):
         super().__init__(*args, **kw)
