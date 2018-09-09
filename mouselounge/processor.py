@@ -35,30 +35,21 @@ def init_worker():
         # work around for fucken pool workers being retarded
         import signal
         signal.signal(signal.SIGINT, signal_handle)
+        signal.signal(signal.SIGQUIT, signal_handle)
     except Exception:
         pass # wangblows might not like it
 
     logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s.%(msecs)03d %(threadName)s %(levelname)s %(module)s: %(message)s',
-        datefmt="%Y-%m-%d %H:%M:%S")
+            level=logging.ERROR,
+            format='%(asctime)s.%(msecs)03d %(threadName)s %(levelname)s %(module)s: %(message)s',
+            datefmt="%Y-%m-%d %H:%M:%S")
     logging.getLogger("requests").setLevel(logging.WARNING)
 
-    LOGGER.info("starting processor")
-
-def noop(_args):
-    pass
+    LOGGER.warning("starting processor")
 
 def _run_process(*args):
     import subprocess
     try:
-        args = list(args)
-        for d in args:
-            if isinstance(d, dict):
-                args.remove(d)
-                if "immidiate_callback" in d.keys():
-                    d["immidiate_callback"](args)
-        args = tuple(args)
         res = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         return res.returncode, res.stdout, res.stderr
     except Exception:
@@ -70,15 +61,14 @@ class Processor:
     def __init__(self):
         self.pool = mp.Pool(5, initializer=init_worker, maxtasksperchild=5)
 
-    def __call__(self, callback, args, immidiate_callback=noop):
+    def __call__(self, callback, args):
         LOGGER.debug("running %r", args)
         try:
-            args.append({"immidiate_callback": immidiate_callback})
             self.pool.apply_async(
-                _run_process,
-                args,
-                callback=callback,
-                error_callback=self.error)
+                    _run_process,
+                    args,
+                    callback=callback,
+                    error_callback=self.error)
         except Exception:
             LOGGER.exception("failed to run processor")
 

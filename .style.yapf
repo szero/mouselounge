@@ -1,0 +1,5 @@
+[yapf]
+column_limit = 100
+indent_width = 4
+continuation_indent_width = 4
+dedent_closing_brackets = 4

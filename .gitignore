@@ -3,3 +3,5 @@ commands/
 handler.py
 volamain(wip).py
 arb.py
+__main__.py.old
+mouselounge.egg-info/
