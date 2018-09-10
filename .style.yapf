@@ -1,5 +1,6 @@
-[yapf]
-column_limit = 100
+[style]
+column_limit = 80
 indent_width = 4
 continuation_indent_width = 4
-dedent_closing_brackets = 4
+dedent_closing_brackets = False
+split_before_first_argument = False

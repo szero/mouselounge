@@ -15,6 +15,7 @@ from .protocol import ProtocolHandler
 LOGGER = logging.getLogger(__name__)
 
 class TCPFlowError(Exception):
+
     def __init__(self, boi):
         super().__init__()
         self.boi = boi
@@ -25,6 +26,7 @@ class TCPFlowError(Exception):
 
 
 class TCPFlowProtocol(asyncio.SubprocessProtocol):
+
     def __init__(self):
         self.data = None
         self.error_data = str()
@@ -213,7 +215,7 @@ class Mousapi:
         self.append_tasks()
         LOGGER.debug("Current coroutines: %s", self.tasklist)
         def handler(_signum, _frame):
-            LOGGER.info("\nUser exited with SIGQUIT")
+            LOGGER.info("User exited with SIGQUIT")
             with suppress(ProcessLookupError):
                 self.game_transport.terminate()
             with suppress(ProcessLookupError):

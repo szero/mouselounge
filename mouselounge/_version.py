@@ -1,4 +1,5 @@
-__all__ = ["__version__", "__title__"]
+__all__ = ["__version__", "__desc__", "__fulltitle__"]
 
 __version__ = "0.1"
-__title__ = "When mice want to relax, they go to the mouselounge"
+__desc__ = "When mice want to relax, they go to the mouselounge"
+__fulltitle__ = "mouselounge, ver. " + __version__

@@ -27,8 +27,10 @@ import multiprocessing as mp
 
 LOGGER = logging.getLogger(__name__)
 
+
 def signal_handle(_signal, _frame):
     pass
+
 
 def init_worker():
     try:
@@ -37,20 +39,22 @@ def init_worker():
         signal.signal(signal.SIGINT, signal_handle)
         signal.signal(signal.SIGQUIT, signal_handle)
     except Exception:
-        pass # wangblows might not like it
+        pass  # wangblows might not like it
 
     logging.basicConfig(
-            level=logging.ERROR,
-            format='%(asctime)s.%(msecs)03d %(threadName)s %(levelname)s %(module)s: %(message)s',
-            datefmt="%Y-%m-%d %H:%M:%S")
+        level=logging.ERROR,
+        format=
+        '%(asctime)s.%(msecs)03d %(threadName)s %(levelname)s %(module)s: %(message)s',
+        datefmt="%Y-%m-%d %H:%M:%S")
     logging.getLogger("requests").setLevel(logging.WARNING)
+    # LOGGER.info("starting processor")
 
-    LOGGER.warning("starting processor")
 
 def _run_process(*args):
     import subprocess
     try:
-        res = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        res = subprocess.run(
+            args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         return res.returncode, res.stdout, res.stderr
     except Exception:
         LOGGER.exception("ex running")
@@ -65,10 +69,10 @@ class Processor:
         LOGGER.debug("running %r", args)
         try:
             self.pool.apply_async(
-                    _run_process,
-                    args,
-                    callback=callback,
-                    error_callback=self.error)
+                _run_process,
+                args,
+                callback=callback,
+                error_callback=self.error)
         except Exception:
             LOGGER.exception("failed to run processor")
 

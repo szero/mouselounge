@@ -27,8 +27,9 @@ import html
 import re
 from time import time
 from time import strftime
+from time import localtime
 
-from colorama import init, Fore#, Back, Style
+from colorama import init, Fore  #, Back, Style
 from cachetools import LRUCache
 import isodate
 
@@ -38,10 +39,11 @@ from .manager import Manager
 init(autoreset=True)
 
 __all__ = [
-        "XYoutuberManager",
-        ]
+    "XYoutuberManager",
+]
 
 LOGGER = logging.getLogger(__name__)
+
 
 class WebManager(Manager):
     needle = re.compile("^$"), 0
@@ -85,8 +87,8 @@ class WebManager(Manager):
     @staticmethod
     def extract(url, *args):
         args = [re.compile(a) if isinstance(a, str) else a for a in args]
-        text, gettime = get_text(url)
-        return [gettime,] + [a.search(text) for a in args]
+        text = get_text(url)
+        return [a.search(text) for a in args]
 
     @staticmethod
     def unescape(string):
@@ -108,21 +110,26 @@ class WebManager(Manager):
 class XYoutuberManager(WebManager):
     needle = r"https?://(?:www\.)?(?:youtu\.be/\S+|youtube\.com/(?:v|watch|embed)\S+)"
 
-    description = re.compile(r'itemprop="description"\s+content="(.+?)"', re.M | re.S)
+    description = re.compile(r'itemprop="description"\s+content="(.+?)"',
+                             re.M | re.S)
     duration = re.compile(r'itemprop="duration"\s+content="(.+?)"', re.M | re.S)
     title = re.compile(r'itemprop="name"\s+content="(.+?)"', re.M | re.S)
 
+    @staticmethod
+    def fail(res):
+        if res[0]:
+            LOGGER.error("Player returnen non-zero status code, error trace:\n%s",
+                         u8str(res[1]))
+            return False
+        return True
+
     def onurl(self, url):
-        def fail(res):
-            if res[0]:
-                print("Failed to play video, reason:\n{}".format(u8str(res[1])))
-                return False
-            return True
-        self.process(fail, ["mpv", url, \
-                "--ytdl-raw-options=format=" + \
-                "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/webm/mp4"])
-        gettime, title, duration, desc = self.extract(url, self.title, self.duration,
-                self.description)
+        self.run_process(self.fail, [
+            "mpv", url, "--ytdl-raw-options=format="
+            "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/webm/mp4"
+        ])
+        title, duration, desc = self.extract(url, self.title, self.duration,
+                                             self.description)
         title = self.unescape(title.group(1))
         if not title:
             return
@@ -130,8 +137,10 @@ class XYoutuberManager(WebManager):
             duration = str(isodate.parse_duration(duration.group(1)))
         desc = self.unescape(desc.group(1))
         yt = Fore.RED + "Youtube: " + Fore.RESET
-        self.fprint(strftime(Fore.LIGHTBLUE_EX + "Post time: " + Fore.RESET +
-            "%a, %d %b %Y, %H:%M:%S", gettime))
+        self.fprint(
+            strftime(
+                Fore.LIGHTBLUE_EX + "Post time: " + Fore.RESET +
+                "%a, %d %b %Y, %H:%M:%S", localtime()))
         self.fprint(Fore.MAGENTA + "Link: " + Fore.RESET + "{}", url)
         if duration and desc:
             self.fprint(yt + "{} ({})\n{}\n", title, duration, desc)

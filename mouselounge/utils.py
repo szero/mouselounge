@@ -24,7 +24,6 @@ THE SOFTWARE.
 # pylint: disable=invalid-name
 
 from functools import lru_cache
-from time import localtime
 
 from requests import Session
 
@@ -41,7 +40,7 @@ requests.headers.update({
 
 @lru_cache(128)
 def get_text(url):
-    return requests.get(url).text, localtime()
+    return requests.get(url).text
 
 @lru_cache(512)
 def get_json(url):
