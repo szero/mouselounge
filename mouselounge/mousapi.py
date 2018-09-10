@@ -197,19 +197,12 @@ class Mousapi:
     def global_stop(self, value):
         self.community_protocol.stopped = self.game_protocol.stopped = value
 
-    @staticmethod
-    def sort_coroutines(iterable):
-        return sorted(iterable, key=lambda k: k[2])
-
     def append_tasks(self):
         fnames_fobjs = inspect.getmembers(self,
                 predicate=inspect.iscoroutinefunction)
 
         for fname, fobj in fnames_fobjs:
             Mousapi.tasklist.append((fname, fobj))
-
-    def call_later(self, cb, args):
-        self.loop.call_later(1, cb, args)
 
     def run(self):
         self.append_tasks()
