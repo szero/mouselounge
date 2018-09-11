@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 
-import sys
 import logging
+import sys
+from shutil import which
 from .mousapi import Mousapi
 from .handler import Managers, Handler
 from ._version import __fulltitle__
+
+for prog in "tcpflow", "youtube-dl", "mpv":
+    if which(prog) is None:
+        print("Please install {} and try again".format(prog), file=sys.stderr)
+        sys.exit(1)
 
 LOGGER = logging.getLogger("mouselounge")
 
@@ -22,9 +28,10 @@ def run():
     handler = Handler(managers)
     try:
         with Mousapi() as nibba:
-            if handler.mouse_managers:
-                nibba.add_listener("play_vid_tribehouse", handler.mouse_data)
-                nibba.add_listener("play_vid_musicroom", handler.mouse_data)
+            if handler.community_managers:
+                nibba.add_listener("play_vid_tribehouse", handler.community_data)
+            if handler.game_managers:
+                nibba.add_listener("play_vid_musicroom", handler.game_data)
             nibba.run()
     except KeyboardInterrupt:
         LOGGER.info("User exited with SIGINT")

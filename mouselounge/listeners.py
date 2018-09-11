@@ -1,5 +1,8 @@
+import logging
 from collections import namedtuple
 from collections import defaultdict
+
+LOGGER = logging.getLogger(__name__)
 
 
 class Listeners(namedtuple("Listeners", ("callbacks", "queue"))):
@@ -28,6 +31,7 @@ class Listeners(namedtuple("Listeners", ("callbacks", "queue"))):
                     for cb in self.callbacks[ki]:
                         # print("cb: {}".format(cb))
                         if cb(item) is False:
+                            LOGGER.info("Removing callback %s from listeners.", cb)
                             self.callbacks[ki].remove(cb)
                             if len(self.callbacks[ki]) == 0:
                                 del self.callbacks[ki]

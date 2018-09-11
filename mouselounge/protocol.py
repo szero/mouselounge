@@ -1,7 +1,10 @@
 '''
 Known mouse protocol values goes here
 '''
+import logging
 from struct import unpack
+
+LOGGER = logging.getLogger(__name__)
 
 PROTO = {
     # Community values
@@ -40,7 +43,9 @@ class ProtocolHandler(dict):
 
     def play_vid_tribehouse(self, line):
         # query_length = unpack(">h", bytearray.fromhex(line_data[8:12]))[0]
-        return self.dechex(line, 18, None),
+        link = self.dechex(line, 18, None),
+        LOGGER.debug("Data in tribeplayer: %s", link)
+        return link
 
     def play_vid_musicroom(self, line):
         link_length = unpack(">H", bytearray.fromhex(line[8:12]))[0] * 2 + 12
@@ -55,6 +60,8 @@ class ProtocolHandler(dict):
             bytearray.fromhex(
                 line[video_name_length:video_name_length + 8]))[0] * 2
         nick = self.dechex(line, video_name_length + 8, nick_length)
+        LOGGER.debug(
+            "Data in musicroom: \n%s \n%s \n%s", link, video_name, nick)
         return link, video_name, nick
 
 

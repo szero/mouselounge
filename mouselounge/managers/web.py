@@ -34,19 +34,24 @@ from cachetools import LRUCache
 import isodate
 
 from ..utils import get_text, u8str
-from .manager import Manager
+from .manager import CommunityManager, GameManager, BaseManager
 
 init(autoreset=True)
 
-__all__ = [
-    "XYoutuberManager",
-]
+__all__ = ["XYoutuberCommunityManager", "XYoutuberGameManager"]
 
 LOGGER = logging.getLogger(__name__)
 
 
-class WebManager(Manager):
-    needle = re.compile("^$"), 0
+class WebManager(BaseManager):
+    needle = r"https?://(?:www\.)?(?:youtu\.be/\S+|youtube\.com/(?:v|watch|embed)\S+)"
+    # needle = r"[A-Za-z0-9_-]{11}"
+
+    description = re.compile(
+        r'itemprop="description"\s+content="(.+?)"', re.M | re.S)
+    duration = re.compile(r'itemprop="duration"\s+content="(.+?)"', re.M | re.S)
+    title = re.compile(r'itemprop="name"\s+content="(.+?)"', re.M | re.S)
+    # needle = re.compile("^$"), 0
     cooldown = LRUCache(maxsize=10)
     timeout = 60
 
@@ -64,7 +69,16 @@ class WebManager(Manager):
     def handle_data(self, data):
         needle, group = self.needle
         now = time()
-        for url in needle.finditer(data[0]):
+        # skip url verification if we are in the music room
+        if len(data) > 1:
+            url = "https://www.youtube.com/watch?v={}".format(data[0])
+            rest = data[1:]
+            self.onurl(url, rest)
+            return True
+        else:
+            url = data[0]
+            rest = None
+        for url in needle.finditer(url):
             url = url.group(group).strip()
             if self.cooldown.get(url, 0) + self.timeout > now:
                 print(Fore.YELLOW + "No video spamming!\n")
@@ -75,14 +89,56 @@ class WebManager(Manager):
                 url = self.fixup(url)
                 if not url:
                     continue
-                if self.onurl(url) is False:
+                if self.onurl(url, rest) is False:
                     break
             except Exception:
                 LOGGER.exception("failed to process")
-        return False
+        return True
 
-    def onurl(self, url):
+    def handle_rest(self, rest):
         raise NotImplementedError()
+
+    def onurl(self, url, rest):
+        self.play_vid(url)
+        title, duration, desc = self.extract(
+            url, self.title, self.duration, self.description)
+        title = self.unescape(title.group(1))
+        if not title:
+            return
+        if duration:
+            duration = str(isodate.parse_duration(duration.group(1)))
+        desc = self.unescape(desc.group(1))
+        yt = Fore.RED + "Youtube: " + Fore.RESET
+        self.fprint(
+            strftime(
+                Fore.LIGHTBLUE_EX + "Post time: " + Fore.RESET +
+                "%a, %d %b %Y, %H:%M:%S", localtime()))
+        self.handle_rest(rest)
+        self.fprint(Fore.MAGENTA + "Link: " + Fore.RESET + "{}", url)
+        if duration and desc:
+            self.fprint(yt + "{} ({})\n{}\n", title, duration, desc)
+        elif duration:
+            self.fprint(yt + "{} ({})\n", title, duration)
+        elif desc:
+            self.fprint(yt + "{}\n{}\n", title, desc)
+        else:
+            self.fprint(yt + "{}\n", title)
+
+    @staticmethod
+    def _fail(res):
+        if res[0]:
+            LOGGER.error(
+                "Player returnen non-zero status code, error trace:\n%s",
+                u8str(res[1]))
+            return False
+        return True
+
+    def play_vid(self, url):
+        self.run_process(
+            self._fail, [
+                "mpv", url, "--ytdl-raw-options=format="
+                "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/webm/mp4"
+            ])
 
     @staticmethod
     def extract(url, *args):
@@ -107,46 +163,11 @@ class WebManager(Manager):
         print(string.format(*args), **kw)
 
 
-class XYoutuberManager(WebManager):
-    needle = r"https?://(?:www\.)?(?:youtu\.be/\S+|youtube\.com/(?:v|watch|embed)\S+)"
+class XYoutuberCommunityManager(WebManager, CommunityManager):
+    def handle_rest(self, _rest):
+        pass
 
-    description = re.compile(r'itemprop="description"\s+content="(.+?)"',
-                             re.M | re.S)
-    duration = re.compile(r'itemprop="duration"\s+content="(.+?)"', re.M | re.S)
-    title = re.compile(r'itemprop="name"\s+content="(.+?)"', re.M | re.S)
 
-    @staticmethod
-    def fail(res):
-        if res[0]:
-            LOGGER.error("Player returnen non-zero status code, error trace:\n%s",
-                         u8str(res[1]))
-            return False
-        return True
-
-    def onurl(self, url):
-        self.run_process(self.fail, [
-            "mpv", url, "--ytdl-raw-options=format="
-            "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/webm/mp4"
-        ])
-        title, duration, desc = self.extract(url, self.title, self.duration,
-                                             self.description)
-        title = self.unescape(title.group(1))
-        if not title:
-            return
-        if duration:
-            duration = str(isodate.parse_duration(duration.group(1)))
-        desc = self.unescape(desc.group(1))
-        yt = Fore.RED + "Youtube: " + Fore.RESET
-        self.fprint(
-            strftime(
-                Fore.LIGHTBLUE_EX + "Post time: " + Fore.RESET +
-                "%a, %d %b %Y, %H:%M:%S", localtime()))
-        self.fprint(Fore.MAGENTA + "Link: " + Fore.RESET + "{}", url)
-        if duration and desc:
-            self.fprint(yt + "{} ({})\n{}\n", title, duration, desc)
-        elif duration:
-            self.fprint(yt + "{} ({})\n", title, duration)
-        elif desc:
-            self.fprint(yt + "{}\n{}\n", title, desc)
-        else:
-            self.fprint(yt + "{}\n", title)
+class XYoutuberGameManager(WebManager, GameManager):
+    def handle_rest(self, rest):
+        self.fprint(Fore.CYAN + "Poster: " + Fore.RESET + "{}", rest[1])

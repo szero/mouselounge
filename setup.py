@@ -27,7 +27,7 @@ setup(
     license="MIT",
     author="Szero",
     author_email="singleton@tfwno.gf",
-    packages=['mouselounge', 'mouselounge.commands'],
+    packages=['mouselounge', 'mouselounge.managers'],
     include_package_data=True,
     entry_points={"console_scripts": ["mouselounge = mouselounge.__main__:run"]},
     classifiers=[

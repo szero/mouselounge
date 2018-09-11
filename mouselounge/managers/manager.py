@@ -4,7 +4,7 @@
 import asyncio
 from ..processor import Processor
 
-__all__ = ["Manager"]
+__all__ = ["BaseManager", "CommunityManager", "GameManager"]
 
 
 def _run_process(self, callback, arglist):
@@ -15,13 +15,15 @@ def _run_process(self, callback, arglist):
 
     self.loop.call_soon(self.processor, callback, arglist)
 
+class BaseManager:
+    def run_process(self, callback, arglist):
+        _run_process(self, callback, arglist)
 
-class Manager():
+class CommunityManager(BaseManager):
     def handle_data(self, data):
         raise NotImplementedError()
 
-    def run_process(self, cb, arglist):
-        """
-        Run an external program
-        """
-        _run_process(self, cb, arglist)
+
+class GameManager(BaseManager):
+    def handle_data(self, data):
+        raise NotImplementedError()

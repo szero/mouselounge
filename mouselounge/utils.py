@@ -24,27 +24,31 @@ THE SOFTWARE.
 # pylint: disable=invalid-name
 
 from functools import lru_cache
-
 from requests import Session
 
+from ._version import __version__
 
 __all__ = ["requests", "get_text", "get_json"]
 
 UA = (
     "Mozilla/5.0 (Linux; cli) pyrequests/0.1 "
-    "(python, like Gecko, like KHTML, like wget, like CURL) mouselounge/1.0")
+    "(python, like Gecko, like KHTML, like wget, like CURL) mouselounge/{}".
+    format(__version__))
 requests = Session()
 requests.headers.update({
     "User-Agent": UA,
-    })
+})
+
 
 @lru_cache(128)
 def get_text(url):
     return requests.get(url).text
 
+
 @lru_cache(512)
 def get_json(url):
     return requests.get(url).json()
+
 
 def u8str(s):
     return str(s, encoding="utf-8", errors="ignore")

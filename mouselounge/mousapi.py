@@ -1,3 +1,4 @@
+import logging
 import asyncio
 import sys
 import inspect
@@ -5,13 +6,11 @@ import signal
 import binascii
 from contextlib import suppress
 from re import search
-import logging
 
 from .listeners import Listeners
 from .protocol import PROTO
 from .protocol import ProtocolHandler
 
-# logging.basicConfig(level=logging.DEBUG)
 LOGGER = logging.getLogger(__name__)
 
 class TCPFlowError(Exception):
@@ -27,7 +26,8 @@ class TCPFlowError(Exception):
 
 class TCPFlowProtocol(asyncio.SubprocessProtocol):
 
-    def __init__(self):
+    def __init__(self, name):
+        self.name = name
         self.data = None
         self.error_data = str()
         self.stopped = False
@@ -65,7 +65,7 @@ class TCPFlowProtocol(asyncio.SubprocessProtocol):
         self.stopped = True
 
     def process_exited(self):
-        LOGGER.debug("Process exited.")
+        LOGGER.debug("%s TCPFlow instance exited.", self.name.capitalize())
         self.stopped = True
 
 
@@ -124,7 +124,6 @@ class Mousapi:
     def add_listener(self, event, data):
         self.listener.add(event, data)
 
-
     async def _init_protocol_and_transport(self):
         args = list()
         args.append("tcpflow")
@@ -135,9 +134,10 @@ class Mousapi:
         # redirect the standard output into a pipe
 
         for i in "community", "game":
-            transport, protocol = await self.loop.subprocess_exec(TCPFlowProtocol,
-                    *args + getattr(self, i), stdout=asyncio.subprocess.PIPE,
-                    stdin=None, stderr=asyncio.subprocess.PIPE)
+            transport, protocol = await self.loop.subprocess_exec(
+                lambda x=i: TCPFlowProtocol(x),
+                *args + getattr(self, i), stdout=asyncio.subprocess.PIPE,
+                stdin=None, stderr=asyncio.subprocess.PIPE)
             setattr(self, i + "_transport", transport)
             setattr(self, i + "_protocol", protocol)
 

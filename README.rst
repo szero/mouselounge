@@ -5,7 +5,8 @@ mouselounge
 Play videos in your tribehouse while running the client outisde of the browser
 (using steam client for example).
 
-Playing videos in music rooms is WIP.
+Playing videos in music rooms works, but videos that are longer than 5 minutes
+won't be closed automatically.
 
 This works only on linux atm.
 
