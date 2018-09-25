@@ -1,29 +1,36 @@
 # import logging
 # import warnings
 
-import asyncio
-from ..processor import Processor
+# from ..processor import run_process
 
 __all__ = ["BaseManager", "CommunityManager", "GameManager"]
 
 
-def _run_process(self, callback, arglist):
-    if not hasattr(self, "processor"):
-        self.processor = Processor()
-    if not hasattr(self, "loop"):
-        self.loop = asyncio.get_event_loop()
-
-    self.loop.call_soon(self.processor, callback, arglist)
-
 class BaseManager:
-    def run_process(self, callback, arglist):
-        _run_process(self, callback, arglist)
+    pass
+    # def run_process(self, callback, arglist, kwdict):
+        # run_process(self, callback, arglist, kwdict)
+
 
 class CommunityManager(BaseManager):
+    #this method will be added during runtime
+    def call_soon(self, callback, *args):
+        pass
+    #this method will be added during runtime
+    def call_later(self, delay, callback, *args):
+        pass
+
     def handle_data(self, data):
         raise NotImplementedError()
 
 
 class GameManager(BaseManager):
+    #this method will be added during runtime
+    def call_soon(self, callback, *args):
+        pass
+    #this method will be added during runtime
+    def call_later(self, delay, callback, *args):
+        pass
+
     def handle_data(self, data):
         raise NotImplementedError()

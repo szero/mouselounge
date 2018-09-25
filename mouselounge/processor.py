@@ -24,6 +24,7 @@ THE SOFTWARE.
 
 import logging
 import multiprocessing as mp
+import subprocess
 
 LOGGER = logging.getLogger(__name__)
 
@@ -43,19 +44,34 @@ def init_worker():
 
     logging.basicConfig(
         level=logging.ERROR,
-        format=
-        '%(asctime)s.%(msecs)03d %(threadName)s %(levelname)s %(module)s: %(message)s',
+        format='%(asctime)s.%(msecs)03d %(threadName)s %(levelname)s '
+        '%(module)s: %(message)s',
         datefmt="%Y-%m-%d %H:%M:%S")
     logging.getLogger("requests").setLevel(logging.WARNING)
     # LOGGER.info("starting processor")
 
 
-def _run_process(*args):
-    import subprocess
+def _run_process(*args, **kwds):
     try:
-        res = subprocess.run(
+        event = kwds.get("event", None)
+        if event is None:
+            LOGGER.warning("No event passed, skipping execution!")
+            return 0, b"", b""
+        proc = subprocess.Popen(
             args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        return res.returncode, res.stdout, res.stderr
+        event.clear()
+        while True:
+            try:
+                stdout, stderr = proc.communicate(timeout=0.1)
+                event.clear()
+                return proc.returncode, stdout, stderr
+            except subprocess.TimeoutExpired:
+                if event.is_set():
+                    event.clear()
+                    # proc.kill()
+                    proc.terminate()
+                    stdout, stderr = proc.communicate()
+                    return proc.returncode, stdout, stderr
     except Exception:
         LOGGER.exception("ex running")
         return -1, b"", b""
@@ -65,12 +81,14 @@ class Processor:
     def __init__(self):
         self.pool = mp.Pool(5, initializer=init_worker, maxtasksperchild=5)
 
-    def __call__(self, callback, args):
+    def __call__(self, callback, args, kwargs):
+        # def __call__(self, callback, args):
         LOGGER.debug("running %r", args)
         try:
             self.pool.apply_async(
                 _run_process,
                 args,
+                kwargs,
                 callback=callback,
                 error_callback=self.error)
         except Exception:

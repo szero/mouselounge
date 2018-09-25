@@ -44,4 +44,4 @@ Run ``mouselounge`` from your terminal!
 Thats it! Now you can paste your links inside music input box like you always did and
 but now mpv window with given video will open.
 
-To quit, either press ``Ctrl + Z`` or ``Ctrl + \``
+To quit, either press ``Ctrl + C`` or ``Ctrl + \``

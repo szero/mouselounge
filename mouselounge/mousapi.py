@@ -79,7 +79,6 @@ class Mousapi:
         else:
             self.loop = asyncio.ProactorEventLoop()
         asyncio.set_event_loop(self.loop)
-        self.testloop = asyncio.get_event_loop()
 
         self.game_transport = None
         self.game_protocol = None
@@ -94,8 +93,6 @@ class Mousapi:
         self.listener = Listeners()
         self.protohandler = ProtocolHandler()
         # self.run()
-        # self.run()
-        # self.barrier = threading.Barrier(2)
         # self.mpevent = mp.Event()
         # self.barrier = mp.Barrier(2)
         # self.thread = mp.Process(daemon=True, target=self._loop())
@@ -124,14 +121,17 @@ class Mousapi:
     def add_listener(self, event, data):
         self.listener.add(event, data)
 
+    def call_soon(self, callback, *args):
+        self.loop.call_soon(callback, *args)
+
+    def call_later(self, delay, callback, *args):
+        self.loop.call_later(delay, callback, *args)
+
     async def _init_protocol_and_transport(self):
         args = list()
         args.append("tcpflow")
         args.append("-BC")
         args.append("-X/dev/null")
-
-        # Create the subprocess controlled by the protocol DateProtocol,
-        # redirect the standard output into a pipe
 
         for i in "community", "game":
             transport, protocol = await self.loop.subprocess_exec(
@@ -156,9 +156,9 @@ class Mousapi:
         self.community_transport.close()
         if self.community_protocol.error_data:
             self.community_protocol.stopped = True
-            with suppress(ProcessLookupError):
+            # with suppress(ProcessLookupError):
                 # self.community_transport.terminate()
-                self.game_transport.terminate()
+                # self.game_transport.terminate()
             error = self.community_protocol.error_data
             self.community_protocol.error_data = str()
             raise TCPFlowError(error)
@@ -176,9 +176,9 @@ class Mousapi:
         self.game_transport.close()
         if self.game_protocol.error_data:
             self.global_stop = True
-            with suppress(ProcessLookupError):
+            # with suppress(ProcessLookupError):
                 # self.game_transport.terminate()
-                self.community_transport.terminate()
+                # self.community_transport.terminate()
             error = self.game_protocol.error_data
             self.game_protocol.error_data = str()
             raise TCPFlowError(error)
@@ -197,7 +197,7 @@ class Mousapi:
     def global_stop(self, value):
         self.community_protocol.stopped = self.game_protocol.stopped = value
 
-    def append_tasks(self):
+    def _append_tasks(self):
         fnames_fobjs = inspect.getmembers(self,
                 predicate=inspect.iscoroutinefunction)
 
@@ -205,18 +205,20 @@ class Mousapi:
             Mousapi.tasklist.append((fname, fobj))
 
     def run(self):
-        self.append_tasks()
+        self._append_tasks()
         LOGGER.debug("Current coroutines: %s", self.tasklist)
         def handler(_signum, _frame):
-            LOGGER.info("User exited with SIGQUIT")
+            nonlocal self
+            self.global_stop = True
             with suppress(ProcessLookupError):
                 self.game_transport.terminate()
             with suppress(ProcessLookupError):
                 self.community_transport.terminate()
+            LOGGER.info("User exited with SIGQUIT")
         signal.signal(signal.SIGQUIT, handler)
         self.retcodes, _pending = self.loop.run_until_complete(
-                asyncio.wait([fobj() for _fname, fobj in Mousapi.tasklist],
-                    return_when=asyncio.FIRST_EXCEPTION))
+                asyncio.wait([fobj() for _fname, fobj in Mousapi.tasklist]))
+                    # return_when=asyncio.ALL_COMPLETED))
 
     def gracefull_close(self):
         """Close all pending tasks and exit"""

@@ -43,7 +43,7 @@ class ProtocolHandler(dict):
 
     def play_vid_tribehouse(self, line):
         # query_length = unpack(">h", bytearray.fromhex(line_data[8:12]))[0]
-        link = self.dechex(line, 18, None),
+        link = (self.dechex(line, 18, None),)
         LOGGER.debug("Data in tribeplayer: %s", link)
         return link
 
@@ -55,13 +55,10 @@ class ProtocolHandler(dict):
             ">H", bytearray.fromhex(line[link_length:link_length + 4]))[0] * 2
         video_name = self.dechex(line, link_length + 4, video_name_length)
         #nick length is integer, not a short?
-        nick_length = (video_name_length + 8) + unpack(
-            ">I",
-            bytearray.fromhex(
+        nick_length = (video_name_length + 8) + unpack(">I", bytearray.fromhex(
                 line[video_name_length:video_name_length + 8]))[0] * 2
         nick = self.dechex(line, video_name_length + 8, nick_length)
-        LOGGER.debug(
-            "Data in musicroom: \n%s \n%s \n%s", link, video_name, nick)
+        LOGGER.debug("Data in musicroom: \n%s \n%s \n%s", link, video_name, nick)
         return link, video_name, nick
 
 
