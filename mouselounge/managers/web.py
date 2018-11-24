@@ -29,7 +29,7 @@ from time import time
 from time import strftime
 from time import localtime
 from multiprocessing import Manager
-from colorama import init, Fore  #, Back, Style
+from colorama import init, Fore  # , Back, Style
 from cachetools import LRUCache
 import isodate
 
@@ -46,25 +46,23 @@ LOGGER = logging.getLogger(__name__)
 
 class WebManager:
     needle = r"https?://(?:www\.)?(?:youtu\.be/\S+|youtube\.com/(?:v|watch|embed)\S+)"
-    # needle = r"[A-Za-z0-9_-]{11}"
 
-    description = re.compile(
-        r'itemprop="description"\s+content="(.+?)"', re.M | re.S)
+    description = re.compile(r'itemprop="description"\s+content="(.+?)"', re.M | re.S)
     duration = re.compile(r'itemprop="duration"\s+content="(.+?)"', re.M | re.S)
     title = re.compile(r'itemprop="name"\s+content="(.+?)"', re.M | re.S)
     # needle = re.compile("^$"), 0
     cooldown = LRUCache(maxsize=10)
     timeout = 60
 
-    def __init__(self, *args, **kw):
-        super().__init__(*args, **kw)
+    # def __init__(self, *args, **kw):
+    def __init__(self):
+        # super().__init__(*args, **kw)
         if isinstance(self.needle, str):
             self.needle = self.needle, 0
         if self.needle and isinstance(self.needle[0], str):
             self.needle = re.compile(self.needle[0]), self.needle[1]
         self.event = Manager().Event()
         self.processor = Processor()
-        # self.process_vid = AttachProcessor()
 
     @staticmethod
     def fixup(url):
@@ -73,19 +71,23 @@ class WebManager:
     def handle_data(self, data):
         needle, group = self.needle
         now = time()
-        # skip url verification if we are in the music room
-        if len(data) > 1:
-            url = "https://www.youtube.com/watch?v={}".format(data[0])
+        if len(data) == 1:
+            url = data[0]
+            rest = None
+        else:
+            # skip url verification if we are in the music room
+            url = f"https://www.youtube.com/watch?v={data[0]}"
             rest = data[1:]
             self.onurl(url, rest)
             return True
-        else:
-            url = data[0]
-            rest = None
         for url in needle.finditer(url):
             url = url.group(group).strip()
-            if self.cooldown.get(url, 0) + self.timeout > now:
-                print(Fore.YELLOW + "No video spamming!\n")
+            cd = self.cooldown.get(url, 0)
+            if cd + self.timeout > now:
+                print(
+                    Fore.YELLOW + f"You can post {url} again "
+                    f"after {self.timeout-(now-cd):.2f} seconds.\n"
+                )
                 continue
             self.cooldown[url] = now
             try:
@@ -102,21 +104,30 @@ class WebManager:
         raise NotImplementedError()
 
     def onurl(self, url, rest):
-        self.handle_vid(url)
         title, duration, desc = self.extract(
-            url, self.title, self.duration, self.description)
+            url, self.title, self.duration, self.description
+        )
+        if title is None:
+            return True
         title = self.unescape(title.group(1))
         if not title:
             return True
+        self.handle_vid(url)
         if duration:
             duration = str(isodate.parse_duration(duration.group(1)))
         desc = self.unescape(desc.group(1))
-        yt = Fore.RED + "Youtube: " + Fore.RESET
-        self.fprint(strftime(
-            Fore.LIGHTBLUE_EX + "Post time: " + Fore.RESET +
-            "%a, %d %b %Y, %H:%M:%S", localtime()))
+        self.fprint(
+            strftime(
+                Fore.LIGHTBLUE_EX
+                + "Post time: "
+                + Fore.RESET
+                + "%a, %d %b %Y, %H:%M:%S",
+                localtime(),
+            )
+        )
         if rest is not None:
             self.fprint(Fore.CYAN + "Poster: " + Fore.RESET + "{}", rest[1])
+        yt = Fore.RED + "Youtube: " + Fore.RESET
         self.fprint(Fore.MAGENTA + "Link: " + Fore.RESET + "{}", url)
         if duration and desc:
             self.fprint(yt + "{} ({})\n{}\n", title, duration, desc)
@@ -127,7 +138,6 @@ class WebManager:
         else:
             self.fprint(yt + "{}\n", title)
         return True
-
 
     @staticmethod
     def extract(url, *args):
@@ -140,10 +150,12 @@ class WebManager:
         if string:
             string = html.unescape(string.strip())
             # shit is double escaped quite often
-            string = string.replace("&lt;", "<").\
-                    replace("&gt;", ">").\
-                    replace("&quot;", '"').\
-                    replace("&amp;", "&")
+            string = (
+                string.replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&quot;", '"')
+                .replace("&amp;", "&")
+            )
             string = re.sub(r"[\s+\n]+", " ", string.replace("\r\n", "\n"))
         return string
 
@@ -155,47 +167,64 @@ class WebManager:
 class XYoutuberCommunityManager(WebManager, CommunityManager):
     # @staticmethod
     def _fail(self, res):
-        self.event.clear()
-        # LOGGER.info("Amount of objects collected: %s", gc.collect())
+        # self.event.clear()
         if res[0]:
             if int(res[0]) == -9 or int(res[0]) == 4:
                 self.fprint(Fore.YELLOW + "We got a skipper!\n")
                 return True
             LOGGER.error(
                 "Player returned non-zero status code of %s, error trace:\n%s",
-                res[0], u8str(res[1]))
+                res[0],
+                u8str(res[1]),
+            )
             return False
         return True
 
     def handle_vid(self, url):
         # When process is running already, this `set` interrupts it
         self.event.set()
-        self.call_later(0.1, self.processor,
-            self._fail, [
-                "mpv", url, "--ytdl-raw-options=format="
-                "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/webm/mp4/best[height<=720]"
-            ], {'event': self.event})
+        self.call_later(
+            0.05,
+            self.processor,
+            self._fail,
+            [
+                "mpv",
+                url,
+                "--volume=50",
+                "--ytdl-raw-options=format="
+                "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/webm/mp4/best",
+            ],
+            {"event": self.event},
+        )
 
 
 class XYoutuberGameManager(WebManager, GameManager):
-    # @staticmethod
-    def _fail(self, res):
-        self.event.clear()
-        # LOGGER.info("Amount of objects collected: %s", gc.collect())
+    @staticmethod
+    def _fail(res):
+        # self.event.clear()
         if res[0]:
             if int(res[0]) == 4:
                 return True
             LOGGER.error(
                 "Player returned non-zero status code of %s, error trace:\n%s",
-                res[0], u8str(res[1]))
+                res[0],
+                u8str(res[1]),
+            )
             return False
         return True
 
     def handle_vid(self, url):
-        # self.call_soon(self.event.set)
         self.event.set()
-        self.call_later(0.1, self.processor,
-            self._fail, [
-                "mpv", url, "--ytdl-raw-options=format="
-                "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/webm/mp4/best[height<=720]"
-            ], {'event': self.event})
+        self.call_later(
+            0.05,
+            self.processor,
+            self._fail,
+            [
+                "mpv",
+                url,
+                "--no-video",
+                "--ytdl-raw-options=format="
+                "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/webm/mp4/best",
+            ],
+            {"event": self.event},
+        )

@@ -18,7 +18,6 @@ def description():
     with open("mouselounge/_version.py") as filep:
         return re.search('__desc__ = "(.+?)"', filep.read()).group(1)
 
-
 setup(
     name="mouselounge",
     version=version(),
@@ -30,6 +29,7 @@ setup(
     packages=['mouselounge', 'mouselounge.managers'],
     include_package_data=True,
     entry_points={"console_scripts": ["mouselounge = mouselounge.__main__:run"]},
+    options={"build_scripts": {"executable": "/usr/bin/python3.7"}},
     classifiers=[
         "Development Status :: Beta",
         "Environment :: Console",

@@ -1,6 +1,6 @@
-'''
+"""
 Known mouse protocol values goes here
-'''
+"""
 import logging
 from struct import unpack
 
@@ -8,10 +8,10 @@ LOGGER = logging.getLogger(__name__)
 
 PROTO = {
     # Community values
-    '1a0c01': "play_vid_tribehouse",
-
+    "1a0c01": "play_vid_tribehouse",
     # Game values
-    '0548': "play_vid_musicroom"
+    # "015c0548": "play_vid_musicroom",
+    "01410548": "play_vid_musicroom",
 }
 
 
@@ -52,11 +52,13 @@ class ProtocolHandler(dict):
         link = self.dechex(line, 12, link_length)
 
         video_name_length = (link_length + 4) + unpack(
-            ">H", bytearray.fromhex(line[link_length:link_length + 4]))[0] * 2
+            ">H", bytearray.fromhex(line[link_length : link_length + 4])
+        )[0] * 2
         video_name = self.dechex(line, link_length + 4, video_name_length)
-        #nick length is integer, not a short?
-        nick_length = (video_name_length + 8) + unpack(">I", bytearray.fromhex(
-                line[video_name_length:video_name_length + 8]))[0] * 2
+        # nick length is integer, not a short?
+        nick_length = (video_name_length + 8) + unpack(
+            ">I", bytearray.fromhex(line[video_name_length : video_name_length + 8])
+        )[0] * 2
         nick = self.dechex(line, video_name_length + 8, nick_length)
         LOGGER.debug("Data in musicroom: \n%s \n%s \n%s", link, video_name, nick)
         return link, video_name, nick

@@ -4,12 +4,14 @@ import logging
 import sys
 import os
 import datetime as dt
-from shutil import which
 import signal
+from shutil import which
 
 from .mousapi import Mousapi
 from .handler import Managers, Handler
 from ._version import __fulltitle__
+
+LOGGER = logging.getLogger("mouselounge")
 
 
 class MyFormatter(logging.Formatter):
@@ -25,9 +27,6 @@ class MyFormatter(logging.Formatter):
         return s
 
 
-LOGGER = logging.getLogger("mouselounge")
-
-
 def debug_handler(_, frame):
     """
     Credit for this function goes to RealDolos, MIT license.
@@ -41,13 +40,12 @@ def debug_handler(_, frame):
     def printall():
         print("\n*** STACKTRACE - START ***\n", file=sys.stderr)
         code = []
-        #pylint: disable=protected-access
+        # pylint: disable=protected-access
         for threadid, stack in sys._current_frames().items():
-            #pylint: enable=protected-access
+            # pylint: enable=protected-access
             code.append("\n# ThreadID: %s" % threadid)
             for filename, lineno, name, line in traceback.extract_stack(stack):
-                code.append(
-                    'File: "%s", line %d, in %s' % (filename, lineno, name))
+                code.append('File: "%s", line %d, in %s' % (filename, lineno, name))
                 if line:
                     code.append("  %s" % (line.strip()))
 
@@ -64,7 +62,7 @@ def debug_handler(_, frame):
 
     shell = code.InteractiveConsole(env)
     message = "Signal received : entering python shell.\nTraceback:\n"
-    message += ''.join(traceback.format_stack(frame))
+    message += "".join(traceback.format_stack(frame))
     shell.interact(message)
 
 
@@ -77,29 +75,29 @@ def sigchld_handler(_signum, _frame):
         try:
             ret = os.waitpid(-1, os.WNOHANG)
         except ChildProcessError:
-            break
+            return
         else:
             if ret[1] > 0:
-                break
+                return
 
 
 def setup():
-
     for prog in "tcpflow", "youtube-dl", "mpv":
         if which(prog) is None:
-            print(
-                "Please install {} and try again".format(prog), file=sys.stderr)
+            print("Please install {} and try again.".format(prog), file=sys.stderr)
             sys.exit(1)
 
+    # LOGGER.setLevel(logging.DEBUG)
     LOGGER.setLevel(logging.INFO)
 
     console = logging.StreamHandler()
 
-    formatter = MyFormatter(fmt='%(asctime)s %(threadName)s %(levelname)s '
-                            '%(module)s: %(message)s')
+    formatter = MyFormatter(
+        fmt="%(asctime)s %(threadName)s %(levelname)s " "%(module)s: %(message)s"
+    )
     console.setFormatter(formatter)
     globalog = logging.getLogger()
-    globalog.setLevel(logging.INFO)
+    globalog.setLevel(logging.ERROR)
     globalog.addHandler(console)
     logging.getLogger("requests").setLevel(logging.WARNING)
 
@@ -111,13 +109,14 @@ def setup():
 
     managers = Managers()
     handler = Handler(managers)
-    with Mousapi() as nibba:
-        handler.add_asyncio_calls(nibba.call_soon, nibba.call_later)
+
+    with Mousapi() as api:
+        handler.add_asyncio_calls(api.loop.call_soon, api.loop.call_later)
         if handler.community_managers:
-            nibba.add_listener("play_vid_tribehouse", handler.community_data)
+            api.add_listener("play_vid_tribehouse", handler.community_data)
         if handler.game_managers:
-            nibba.add_listener("play_vid_musicroom", handler.game_data)
-        nibba.run()
+            api.add_listener("play_vid_musicroom", handler.game_data)
+        api.listen()
 
 
 def run():

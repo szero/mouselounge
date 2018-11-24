@@ -29,68 +29,77 @@ import subprocess
 LOGGER = logging.getLogger(__name__)
 
 
-def signal_handle(_signal, _frame):
-    pass
+# def signal_handle(_signal, _frame):
+# pass
 
 
-def init_worker():
+def _init_worker():
     try:
-        # work around for fucken pool workers being retarded
+        # workaround for fucken pool workers being retarded
         import signal
-        signal.signal(signal.SIGINT, signal_handle)
-        signal.signal(signal.SIGQUIT, signal_handle)
+
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        signal.signal(signal.SIGQUIT, signal.SIG_IGN)
     except Exception:
         pass  # wangblows might not like it
 
     logging.basicConfig(
         level=logging.ERROR,
-        format='%(asctime)s.%(msecs)03d %(threadName)s %(levelname)s '
-        '%(module)s: %(message)s',
-        datefmt="%Y-%m-%d %H:%M:%S")
+        format="%(asctime)s.%(msecs)03d %(threadName)s %(levelname)s "
+        "%(module)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
     logging.getLogger("requests").setLevel(logging.WARNING)
     # LOGGER.info("starting processor")
 
 
 def _run_process(*args, **kwds):
     try:
-        event = kwds.get("event", None)
+        event = kwds.get("event")
         if event is None:
-            LOGGER.warning("No event passed, skipping execution!")
-            return 0, b"", b""
-        proc = subprocess.Popen(
-            args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            raise AttributeError
         event.clear()
+        proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         while True:
             try:
-                stdout, stderr = proc.communicate(timeout=0.1)
+                stdout, stderr = proc.communicate(timeout=0.02)
                 event.clear()
                 return proc.returncode, stdout, stderr
             except subprocess.TimeoutExpired:
                 if event.is_set():
                     event.clear()
-                    # proc.kill()
                     proc.terminate()
                     stdout, stderr = proc.communicate()
                     return proc.returncode, stdout, stderr
-    except Exception:
+    except ValueError:
+        LOGGER.warning("That ValueError thing happened.")
+        # Sometimes communicate throws ValueError related to file object.
+        # I think its related to low timeout value and using Popen in multiple
+        # processes.
+        # Return error code that is returned when we interrupt mpv with SIGTERM
+        return 4, b"", b""
+    except BrokenPipeError:
+        # BrokenPipeError happens if we SIGQUIT and the Manager().Event()
+        # gets closed while this process is still running.
+        return 0, b"", b""
+    except AttributeError:
+        LOGGER.warning("No event passed, skipping execution!")
+        return 0, b"", b""
+    except Exception as ex:
         LOGGER.exception("ex running")
-        return -1, b"", b""
+        return -1, b"", bytes(ex, "utf8")
 
 
 class Processor:
     def __init__(self):
-        self.pool = mp.Pool(5, initializer=init_worker, maxtasksperchild=5)
+        self.pool = mp.Pool(5, initializer=_init_worker, maxtasksperchild=5)
 
-    def __call__(self, callback, args, kwargs):
-        # def __call__(self, callback, args):
+    def __call__(self, callback, args=None, kwargs=None):
         LOGGER.debug("running %r", args)
         try:
             self.pool.apply_async(
-                _run_process,
-                args,
-                kwargs,
-                callback=callback,
-                error_callback=self.error)
+                _run_process, args, kwargs, callback=callback, error_callback=self.error
+            )
         except Exception:
             LOGGER.exception("failed to run processor")
 

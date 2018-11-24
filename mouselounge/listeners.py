@@ -1,6 +1,7 @@
 import logging
-from collections import namedtuple
-from collections import defaultdict
+
+from collections import namedtuple, defaultdict
+from copy import copy
 
 LOGGER = logging.getLogger(__name__)
 
@@ -23,19 +24,25 @@ class Listeners(namedtuple("Listeners", ("callbacks", "queue"))):
         """Process queue for these listeners"""
         # with self.lock:
 
-        # print("whatz in queue:\n{}".format(self.queue))
+        callbacks = copy(self.callbacks)
+
+        rm_cb = False
         for ki, vi in self.queue.items():
-            # print("k:{} v:{}".format(ki, vi))
             if ki in self.callbacks:
                 for item in vi:
                     for cb in self.callbacks[ki]:
-                        # print("cb: {}".format(cb))
                         if cb(item) is False:
-                            LOGGER.warning("Removing callback %s from listeners.", cb)
-                            self.callbacks[ki].remove(cb)
-                            if len(self.callbacks[ki]) == 0:
-                                del self.callbacks[ki]
+                            callbacks[ki].remove(cb)
+                            if not callbacks[ki]:
+                                del callbacks[ki]
+                            rm_cb = True
+
         self.queue.clear()
+        if rm_cb:
+            self.callbacks.clear()
+            for k, v in callbacks.items():
+                self.callbacks[k].extend(v)
+
         return len(self.callbacks)
 
     def add(self, callback_type, callback):
@@ -45,8 +52,10 @@ class Listeners(namedtuple("Listeners", ("callbacks", "queue"))):
         self.callbacks[callback_type].append(callback)
 
     def enqueue(self, item_type, item):
-        """Queue a new data item"""
+        """Queue a new data item, make item iterable"""
 
+        if not isinstance(item, tuple):
+            item = tuple(item)
         # with self.lock:
         self.queue[item_type].append(item)
 
@@ -58,7 +67,9 @@ class Listeners(namedtuple("Listeners", ("callbacks", "queue"))):
 
 
 if __name__ == "__main__":
-    test = Listeners()
+    listeners = defaultdict(Listeners)
+    t1 = listeners[0]
+    t2 = listeners[1]
 
     def boi(val):
         print("boi {}".format(val))
@@ -67,11 +78,14 @@ if __name__ == "__main__":
         print("wut {}".format(val))
         return False
 
-    test.add("nibba", boi)
-    test.add("gibba", wut)
-    test.enqueue("nibba", "dingo")
-    test.enqueue("nibba", "dingo")
-    test.enqueue("gibba", "dingo")
-    test.process()
-    test.enqueue("nibba", "dingo")
-    test.process()
+    t1.add("t1", boi)
+    t2.add("t2", wut)
+
+    t1.enqueue("t1", "whats")
+    t2.enqueue("t2", "good")
+    t1.enqueue("t1", "mah")
+    t2.enqueue("t2", "boi")
+
+    for listener in listeners.values():
+        print(listener)
+        listener.process()

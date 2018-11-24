@@ -29,7 +29,7 @@ Installation
     pip3 install https://github.com/Szero/mouseloungue/archive/master.zip
 
 Since most Linux distributions don't allow packet fetching for non-root users, you
-either have to run this program with ``sudo`` or give your "tcpflow" program the rights
+either have to run this program with ``sudo`` or give your ``tcpflow`` program the rights
 to capture packets by using ``setcap`` program and issuing it like this:
 
 ::
