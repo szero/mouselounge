@@ -55,7 +55,7 @@ class Listeners(namedtuple("Listeners", ("callbacks", "queue"))):
         """Queue a new data item, make item iterable"""
 
         if not isinstance(item, tuple):
-            item = tuple(item)
+            raise ValueError("I can only process tuples!")
         # with self.lock:
         self.queue[item_type].append(item)
 

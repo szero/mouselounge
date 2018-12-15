@@ -34,7 +34,7 @@ to capture packets by using ``setcap`` program and issuing it like this:
 
 ::
 
-    setcap 'CAP_NET_RAW+eip CAP_NET_ADMIN+eip' /usr/bin/tcpflow
+    sudo setcap 'CAP_NET_RAW+eip CAP_NET_ADMIN+eip' /usr/bin/tcpflow
 
 Running
 ~~~~~~~

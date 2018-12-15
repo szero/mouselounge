@@ -3,7 +3,10 @@ import asyncio
 import sys
 import inspect
 import signal
-import binascii
+
+
+from struct import unpack
+from struct import error as StructError
 from os import devnull
 from contextlib import suppress
 from re import search
@@ -15,13 +18,13 @@ LOGGER = logging.getLogger(__name__)
 
 
 class TCPFlowError(Exception):
-    def __init__(self, ex=None):
+    def __init__(self, msg=""):
         super().__init__()
-        self.ex = ex
+        self.msg = msg
 
     def __str__(self):
-        if self.ex is not None:
-            return str(self.ex).strip()
+        if self.msg:
+            return str(self.msg).strip()
         return TCPFlowError.__name__
 
 
@@ -55,12 +58,9 @@ class TCPFlowProtocol(asyncio.SubprocessProtocol):
         while not self.stopped:
             try:
                 data = await self._future
-                for l in data.split(b"\n"):
-                    packet = binascii.hexlify(l).decode("ascii")
-                    if packet != "":
+                for packet in data.split(b"\n"):
+                    if len(packet) > 7:
                         yield packet
-            except (IndexError, AttributeError):
-                pass
             except asyncio.CancelledError:
                 break
 
@@ -91,32 +91,13 @@ class Mousapi:
         self.community_protocol = None
         self.retcodes = None
         self.community = ["tcp and src 164.132.202.12 and greater 69"]
-        # game ports so far 44440, 44444, 6112, 3724, 5555
         self.game = [
-            "tcp and port 6112 or port 44440 or port 44444 or port 3724"
-            " or port 5555 and greater 69 and inbound"
+            "tcp and net 5.135.0.0/16 or net 176.31.0.0/16 "
+            "and greater 69 and inbound"
         ]
         self.event = asyncio.Event()
         self.listener = Listeners()
         self.protohandler = ProtocolHandler()
-        # self.barrier = mp.Barrier(2)
-        # barrier = None
-        # self.thread = mp.Process(daemon=True, target=self._loop)
-        # self.thread.start()
-        # self.barrier.wait()
-        # self.thread.join()
-        # self.run()
-
-    # def _loop(self):
-    # """Actual thread"""
-
-    # try:
-    # print("before")
-    # self.barrier.wait()
-    # print("after")
-    # self.run()
-    # except Exception:
-    # sys.exit(1)
 
     def add_listener(self, event, data):
         self.listener.add(event, data)
@@ -142,7 +123,10 @@ class Mousapi:
     async def _handle_community_server_data(self):
         await self.event.wait()
         async for line in self.community_protocol.yielder():
-            event = line[12:18]
+            try:
+                event = unpack(">I", line[:4])[0]
+            except StructError:
+                continue
             LOGGER.debug("What's the community event: %s", event)
             if event in self.protohandler:
                 self.listener.enqueue(PROTO[event], self.protohandler(event, line))
@@ -154,7 +138,10 @@ class Mousapi:
     async def _handle_game_server_data(self):
         await self.event.wait()
         async for line in self.game_protocol.yielder():
-            event = line[:8]
+            try:
+                event = unpack(">I", line[2:6])[0]
+            except StructError:
+                continue
             LOGGER.debug("What's the game event: %s", event)
             if event in self.protohandler:
                 self.listener.enqueue(PROTO[event], self.protohandler(event, line))
@@ -196,14 +183,15 @@ class Mousapi:
             LOGGER.info("User exited with SIGQUIT")
 
         signal.signal(signal.SIGQUIT, handler)
+
         self._append_tasks()
 
         LOGGER.debug("Current coroutines: %s", self.tasklist)
-
         self.retcodes, _pending = self.loop.run_until_complete(
-            asyncio.wait([fobj() for _fname, fobj in Mousapi.tasklist])
+            asyncio.wait(
+                [fobj() for _fname, fobj in Mousapi.tasklist]
+            )
         )
-        # return_when=asyncio.ALL_COMPLETED))
 
     def gracefull_close(self):
         """Close all pending tasks and exit"""

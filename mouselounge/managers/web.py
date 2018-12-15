@@ -22,16 +22,22 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
 
-import logging
-import html
-import re
 from time import time
 from time import strftime
 from time import localtime
 from multiprocessing import Manager
+from functools import partial
+
+import logging
+import html
+import re
+
+
 from colorama import init, Fore  # , Back, Style
 from cachetools import LRUCache
+
 import isodate
+
 
 from ..utils import get_text, u8str
 from ..processor import Processor
@@ -101,7 +107,7 @@ class WebManager:
         return True
 
     def handle_vid(self, url):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def onurl(self, url, rest):
         title, duration, desc = self.extract(
@@ -184,17 +190,17 @@ class XYoutuberCommunityManager(WebManager, CommunityManager):
         # When process is running already, this `set` interrupts it
         self.event.set()
         self.call_later(
-            0.05,
-            self.processor,
-            self._fail,
-            [
+            0.18,
+            partial(
+                self.processor,
+                self._fail,
                 "mpv",
                 url,
                 "--volume=50",
                 "--ytdl-raw-options=format="
                 "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/webm/mp4/best",
-            ],
-            {"event": self.event},
+                event=self.event,
+            ),
         )
 
 
@@ -216,15 +222,15 @@ class XYoutuberGameManager(WebManager, GameManager):
     def handle_vid(self, url):
         self.event.set()
         self.call_later(
-            0.05,
-            self.processor,
-            self._fail,
-            [
+            0.18,
+            partial(
+                self.processor,
+                self._fail,
                 "mpv",
                 url,
                 "--no-video",
                 "--ytdl-raw-options=format="
                 "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/webm/mp4/best",
-            ],
-            {"event": self.event},
+                event=self.event,
+            ),
         )

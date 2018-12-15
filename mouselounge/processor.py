@@ -62,7 +62,7 @@ def _run_process(*args, **kwds):
         proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         while True:
             try:
-                stdout, stderr = proc.communicate(timeout=0.02)
+                stdout, stderr = proc.communicate(timeout=0.08)
                 event.clear()
                 return proc.returncode, stdout, stderr
             except subprocess.TimeoutExpired:
@@ -72,12 +72,12 @@ def _run_process(*args, **kwds):
                     stdout, stderr = proc.communicate()
                     return proc.returncode, stdout, stderr
     except ValueError:
-        LOGGER.warning("That ValueError thing happened.")
+        LOGGER.warning("That ValueError thing happened.\nURL: %s", args[1])
         # Sometimes communicate throws ValueError related to file object.
         # I think its related to low timeout value and using Popen in multiple
         # processes.
-        # Return error code that is returned when we interrupt mpv with SIGTERM
-        return 4, b"", b""
+        # DON'T: Return error code that is returned when we interrupt mpv with SIGTERM
+        return 0, b"", b""
     except BrokenPipeError:
         # BrokenPipeError happens if we SIGQUIT and the Manager().Event()
         # gets closed while this process is still running.
@@ -94,11 +94,11 @@ class Processor:
     def __init__(self):
         self.pool = mp.Pool(5, initializer=_init_worker, maxtasksperchild=5)
 
-    def __call__(self, callback, args=None, kwargs=None):
+    def __call__(self, callback, *args, **kwargs):
         LOGGER.debug("running %r", args)
         try:
             self.pool.apply_async(
-                _run_process, args, kwargs, callback=callback, error_callback=self.error
+                _run_process, args, kwargs, callback, error_callback=self.error
             )
         except Exception:
             LOGGER.exception("failed to run processor")
