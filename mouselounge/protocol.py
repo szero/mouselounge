@@ -10,6 +10,7 @@ PROTO = {
     # Community values
     # "1a0c01": "play_vid_tribehouse",
     0x01320101: "play_vid_tribehouse",
+    0x01430101: "play_vid_tribehouse",
     # Game values
     0x0548000B: "play_vid_musicroom",
 }

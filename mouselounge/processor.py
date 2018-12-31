@@ -29,9 +29,6 @@ import subprocess
 LOGGER = logging.getLogger(__name__)
 
 
-# def signal_handle(_signal, _frame):
-# pass
-
 
 def _init_worker():
     try:
@@ -71,14 +68,10 @@ def _run_process(*args, **kwds):
                     proc.terminate()
                     stdout, stderr = proc.communicate()
                     return proc.returncode, stdout, stderr
-    except ValueError:
-        LOGGER.warning("That ValueError thing happened.\nURL: %s", args[1])
+    except (ValueError, BrokenPipeError):
         # Sometimes communicate throws ValueError related to file object.
         # I think its related to low timeout value and using Popen in multiple
-        # processes.
-        # DON'T: Return error code that is returned when we interrupt mpv with SIGTERM
-        return 0, b"", b""
-    except BrokenPipeError:
+        # processes. Happens only during process termination?
         # BrokenPipeError happens if we SIGQUIT and the Manager().Event()
         # gets closed while this process is still running.
         return 0, b"", b""
