@@ -45,7 +45,7 @@ class TCPFlowProtocol(asyncio.SubprocessProtocol):
                 self.error_data += e + "\n"
             # program prints status stuff into stderr so we have to ignore it
             for status in "listening", "reportfilename":
-                if status in self.error_data or len(self.error_data) <= 2:
+                if status in self.error_data.lower() or len(self.error_data) <= 2:
                     self.error_data = str()
                     break
 
@@ -222,7 +222,7 @@ class Mousapi:
             for coro, ex in errors:
                 LOGGER.error("\n%s returned: %s", coro, ex)
 
-        LOGGER.info("See ya araound")
+        LOGGER.info("See ya around")
         if errors:
             return 1
         return 0

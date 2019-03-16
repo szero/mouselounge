@@ -59,7 +59,7 @@ def _run_process(*args, **kwds):
         proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         while True:
             try:
-                stdout, stderr = proc.communicate(timeout=0.08)
+                stdout, stderr = proc.communicate(timeout=0.1)
                 event.clear()
                 return proc.returncode, stdout, stderr
             except subprocess.TimeoutExpired:

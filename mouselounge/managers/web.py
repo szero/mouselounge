@@ -26,7 +26,6 @@ from time import time
 from time import strftime
 from time import localtime
 from multiprocessing import Manager
-from functools import partial
 
 import logging
 import html
@@ -39,9 +38,9 @@ from cachetools import LRUCache
 import isodate
 
 
-from ..utils import get_text, u8str
+from ..utils import get_text, u8str, MPV_IPC_Client
 from ..processor import Processor
-from .manager import CommunityManager, GameManager
+from .manager import BaseManager, CommunityManager, GameManager
 
 init(autoreset=True)
 
@@ -50,9 +49,8 @@ __all__ = ["XYoutuberCommunityManager", "XYoutuberGameManager"]
 LOGGER = logging.getLogger(__name__)
 
 
-class WebManager:
+class WebManager(BaseManager):
     needle = r"https?://(?:www\.)?(?:youtu\.be/\S+|youtube\.com/(?:v|watch|embed)\S+)"
-
     description = re.compile(r'itemprop="description"\s+content="(.+?)"', re.M | re.S)
     duration = re.compile(r'itemprop="duration"\s+content="(.+?)"', re.M | re.S)
     title = re.compile(r'itemprop="name"\s+content="(.+?)"', re.M | re.S)
@@ -69,6 +67,10 @@ class WebManager:
             self.needle = re.compile(self.needle[0]), self.needle[1]
         self.event = Manager().Event()
         self.processor = Processor()
+        self.mpvclient = MPV_IPC_Client()
+        self.mpv_started = False
+        self.ipc_ready = False
+        # self.event.set()
 
     @staticmethod
     def fixup(url):
@@ -91,7 +93,7 @@ class WebManager:
             cd = self.cooldown.get(url, 0)
             if cd + self.timeout > now:
                 print(
-                    Fore.YELLOW + f"You can post {url} again "
+                    f"{Fore.YELLOW}You can post {url} again "
                     f"after {self.timeout-(now-cd):.2f} seconds.\n"
                 )
                 continue
@@ -106,8 +108,45 @@ class WebManager:
                 LOGGER.exception("failed to process")
         return True
 
-    def handle_vid(self, url):
+    def process_callback(self, retcode):
         raise NotImplementedError
+
+    def start_mpv(self):
+        if self.mpv_started:
+            return
+        self.processor(
+            self.process_callback,
+            "mpv",
+            "--idle=yes",
+            "--loop-playlist=no",
+            "--loop-file=no",
+            # f"--input-conf={self.cfg}",
+            # "--no-video",
+            f"--input-ipc-server={self.mpvclient.socket_file}",
+            "--ytdl-raw-options=format="
+            "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/webm/mp4/best",
+            event=self.event,
+        )
+        self.mpv_started = True
+        self.connect_to_mpv()
+
+    def connect_to_mpv(self):
+        if not self.mpvclient.is_socket_avaliable():
+            self.call_later(1, self.connect_to_mpv)
+            return
+        self.mpvclient.connect()
+        self.ipc_ready = True
+
+    def send_data_to_mpv(self, url):
+        if not self.ipc_ready:
+            self.call_later(1, self.send_data_to_mpv, url)
+            return
+        self.mpvclient.send_data(url)
+
+    def handle_vid(self, url):
+        self.start_mpv()
+        data = {"command": ["loadfile", url]}
+        self.send_data_to_mpv(data)
 
     def onurl(self, url, rest):
         title, duration, desc = self.extract(
@@ -122,27 +161,24 @@ class WebManager:
         if duration:
             duration = str(isodate.parse_duration(duration.group(1)))
         desc = self.unescape(desc.group(1))
-        self.fprint(
+        print(
             strftime(
-                Fore.LIGHTBLUE_EX
-                + "Post time: "
-                + Fore.RESET
-                + "%a, %d %b %Y, %H:%M:%S",
+                f"{Fore.LIGHTBLUE_EX}Post time: {Fore.RESET}%a, %d %b %Y, %H:%M:%S",
                 localtime(),
             )
         )
         if rest is not None:
-            self.fprint(Fore.CYAN + "Poster: " + Fore.RESET + "{}", rest[1])
-        yt = Fore.RED + "Youtube: " + Fore.RESET
-        self.fprint(Fore.MAGENTA + "Link: " + Fore.RESET + "{}", url)
+            print(f"{Fore.CYAN}Poster: {Fore.RESET}{rest[1]}")
+        yt = f"{Fore.RED}Youtube: {Fore.RESET}"
+        print(f"{Fore.MAGENTA}Link: {Fore.RESET}{url}")
         if duration and desc:
-            self.fprint(yt + "{} ({})\n{}\n", title, duration, desc)
+            print(f"{yt}{title} ({duration})\n{desc}\n")
         elif duration:
-            self.fprint(yt + "{} ({})\n", title, duration)
+            print(f"{yt}{title} ({duration})\n")
         elif desc:
-            self.fprint(yt + "{}\n{}\n", title, desc)
+            print(f"{yt}{title}\n{desc}\n")
         else:
-            self.fprint(yt + "{}\n", title)
+            print(f"{yt}{title}\n")
         return True
 
     @staticmethod
@@ -165,72 +201,42 @@ class WebManager:
             string = re.sub(r"[\s+\n]+", " ", string.replace("\r\n", "\n"))
         return string
 
-    @staticmethod
-    def fprint(string, *args, **kw):
-        print(string.format(*args), **kw)
+
+class XYoutuberGameManager(WebManager, GameManager):
+    # mpv --idle=yes --input-conf=file.cfg --loop-playlist=no
+    # --loop-file=no --input-ipc-server=/tmp/mpvsocket
+
+    def process_callback(self, retcode):
+        # self.event.clear()
+        self.ipc_ready = False
+        self.mpv_started = False
+        self.mpvclient.close()
+        if retcode[0]:
+            if int(retcode[0]) == 4:
+                return True
+            LOGGER.error(
+                "Player returned non-zero status code of %s, error trace:\n%s",
+                retcode[0],
+                u8str(retcode[1]),
+            )
+            return False
+        return True
 
 
 class XYoutuberCommunityManager(WebManager, CommunityManager):
-    # @staticmethod
-    def _fail(self, res):
+    def process_callback(self, retcode):
         # self.event.clear()
-        if res[0]:
-            if int(res[0]) == -9 or int(res[0]) == 4:
-                self.fprint(Fore.YELLOW + "We got a skipper!\n")
+        self.ipc_ready = False
+        self.mpv_started = False
+        self.mpvclient.close()
+        if retcode[0]:
+            if int(retcode[0]) == -9 or int(retcode[0]) == 4:
+                print(f"{Fore.YELLOW}We got a skipper!\n")
                 return True
             LOGGER.error(
                 "Player returned non-zero status code of %s, error trace:\n%s",
-                res[0],
-                u8str(res[1]),
+                retcode[0],
+                u8str(retcode[1]),
             )
             return False
         return True
-
-    def handle_vid(self, url):
-        # When process is running already, this `set` interrupts it
-        self.event.set()
-        self.call_later(
-            0.18,
-            partial(
-                self.processor,
-                self._fail,
-                "mpv",
-                url,
-                "--volume=50",
-                "--ytdl-raw-options=format="
-                "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/webm/mp4/best",
-                event=self.event,
-            ),
-        )
-
-
-class XYoutuberGameManager(WebManager, GameManager):
-    @staticmethod
-    def _fail(res):
-        # self.event.clear()
-        if res[0]:
-            if int(res[0]) == 4:
-                return True
-            LOGGER.error(
-                "Player returned non-zero status code of %s, error trace:\n%s",
-                res[0],
-                u8str(res[1]),
-            )
-            return False
-        return True
-
-    def handle_vid(self, url):
-        self.event.set()
-        self.call_later(
-            0.18,
-            partial(
-                self.processor,
-                self._fail,
-                "mpv",
-                url,
-                "--no-video",
-                "--ytdl-raw-options=format="
-                "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/webm/mp4/best",
-                event=self.event,
-            ),
-        )
