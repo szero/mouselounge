@@ -22,6 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
 # pylint: disable=invalid-name
+import logging
 import socket
 import json
 import os
@@ -38,6 +39,8 @@ from requests import Session
 from ._version import __version__
 
 __all__ = ["requests", "get_text", "get_json", "MPV_IPC_Client"]
+
+LOGGER = logging.getLogger(__name__)
 
 UA = (
     "Mozilla/5.0 (Linux; cli) pyrequests/0.1 "
@@ -80,10 +83,13 @@ class MPV_IPC_Client:
     def send_data(self, data):
         data = f"{json.dumps(data)}\n"
         data = data.encode("utf8")
-
         self.soc.send(data)
         for resp in [resp for resp in self.soc.recv(1024).split(b"\n") if resp.strip()]:
-            resp = json.loads(resp)
+            try:
+                resp = json.loads(resp, encoding="utf8")
+            except json.decoder.JSONDecodeError:
+                LOGGER.exception(resp)
+                continue
             error = resp.get("error")
             if error and error != "success":
                 raise ConnectionError(error)
@@ -92,7 +98,6 @@ class MPV_IPC_Client:
         if not isinstance(fname, str):
             raise ValueError("Your filename must be a string")
         tmp_dir = os.environ.get("XDG_RUNTIME_DIR")
-        tmp_file = str()
         if tmp_dir:
             tmp_file = f"{tmp_dir}/{fname}"
             self.fileset.add(tmp_file)

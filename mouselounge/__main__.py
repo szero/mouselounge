@@ -84,7 +84,7 @@ def sigchld_handler(_signum, _frame):
 def setup():
     for prog in "tcpflow", "youtube-dl", "mpv":
         if which(prog) is None:
-            print("Please install {} and try again.".format(prog), file=sys.stderr)
+            print(f"Please install {prog} and try again.", file=sys.stderr)
             sys.exit(1)
 
     # LOGGER.setLevel(logging.DEBUG)

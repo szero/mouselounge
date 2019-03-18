@@ -53,17 +53,17 @@ def _init_worker():
 def _run_process(*args, **kwds):
     try:
         event = kwds.get("event")
-        if event is None:
-            raise AttributeError
-        event.clear()
+        if event:
+            event.clear()
         proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         while True:
             try:
                 stdout, stderr = proc.communicate(timeout=0.1)
-                event.clear()
+                if event:
+                    event.clear()
                 return proc.returncode, stdout, stderr
             except subprocess.TimeoutExpired:
-                if event.is_set():
+                if event and event.is_set():
                     event.clear()
                     proc.terminate()
                     stdout, stderr = proc.communicate()

@@ -1,11 +1,15 @@
 # import logging
 # import warnings
-# from ..processor import run_process
+from ..processor import Processor
 
 __all__ = ["BaseManager", "CommunityManager", "GameManager"]
 
-
 class BaseManager:
+    def __init__(self):
+        self.__processor = Processor()
+
+    def run_process(self, callback, *args):
+        self.call_soon(self.__processor, callback, *args)
     # this method will be added during runtime
     def call_soon(self, callback, *args):
         pass

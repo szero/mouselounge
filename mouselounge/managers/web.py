@@ -25,7 +25,6 @@ THE SOFTWARE.
 from time import time
 from time import strftime
 from time import localtime
-from multiprocessing import Manager
 
 import logging
 import html
@@ -39,7 +38,6 @@ import isodate
 
 
 from ..utils import get_text, u8str, MPV_IPC_Client
-from ..processor import Processor
 from .manager import BaseManager, CommunityManager, GameManager
 
 init(autoreset=True)
@@ -60,17 +58,19 @@ class WebManager(BaseManager):
 
     # def __init__(self, *args, **kw):
     def __init__(self):
-        # super().__init__(*args, **kw)
+        super().__init__()
         if isinstance(self.needle, str):
             self.needle = self.needle, 0
         if self.needle and isinstance(self.needle[0], str):
             self.needle = re.compile(self.needle[0]), self.needle[1]
-        self.event = Manager().Event()
-        self.processor = Processor()
+        # self.processor = Processor()
         self.mpvclient = MPV_IPC_Client()
+        self.mpvcfg = self.mpvclient.create_tmp_filepath("mpvcfg")
+        with open(self.mpvcfg, "w") as cfg:
+            cfg.write("Q quit\n")
+            cfg.write("q stop\n")
         self.mpv_started = False
         self.ipc_ready = False
-        # self.event.set()
 
     @staticmethod
     def fixup(url):
@@ -108,24 +108,28 @@ class WebManager(BaseManager):
                 LOGGER.exception("failed to process")
         return True
 
-    def process_callback(self, retcode):
-        raise NotImplementedError
+    def process_callback(self, _response):
+        self.ipc_ready = False
+        self.mpv_started = False
+        self.mpvclient.close()
 
     def start_mpv(self):
         if self.mpv_started:
             return
-        self.processor(
+        # making this config allows stopping the video without
+        # killing the mpv process
+        self.run_process(
             self.process_callback,
             "mpv",
             "--idle=yes",
             "--loop-playlist=no",
             "--loop-file=no",
-            # f"--input-conf={self.cfg}",
+            f"--input-conf={self.mpvcfg}",
             # "--no-video",
             f"--input-ipc-server={self.mpvclient.socket_file}",
             "--ytdl-raw-options=format="
             "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/webm/mp4/best",
-            event=self.event,
+            # event=self.event,
         )
         self.mpv_started = True
         self.connect_to_mpv()
@@ -203,40 +207,35 @@ class WebManager(BaseManager):
 
 
 class XYoutuberGameManager(WebManager, GameManager):
-    # mpv --idle=yes --input-conf=file.cfg --loop-playlist=no
-    # --loop-file=no --input-ipc-server=/tmp/mpvsocket
-
-    def process_callback(self, retcode):
-        # self.event.clear()
+    def process_callback(self, response):
         self.ipc_ready = False
         self.mpv_started = False
         self.mpvclient.close()
-        if retcode[0]:
-            if int(retcode[0]) == 4:
+        if response[0]:
+            if int(response[0]) == 4:
                 return True
             LOGGER.error(
                 "Player returned non-zero status code of %s, error trace:\n%s",
-                retcode[0],
-                u8str(retcode[1]),
+                response[0],
+                u8str(response[1]),
             )
             return False
         return True
 
 
 class XYoutuberCommunityManager(WebManager, CommunityManager):
-    def process_callback(self, retcode):
-        # self.event.clear()
+    def process_callback(self, response):
         self.ipc_ready = False
         self.mpv_started = False
         self.mpvclient.close()
-        if retcode[0]:
-            if int(retcode[0]) == -9 or int(retcode[0]) == 4:
+        if response[0]:
+            if int(response[0]) == -9 or int(response[0]) == 4:
                 print(f"{Fore.YELLOW}We got a skipper!\n")
                 return True
             LOGGER.error(
                 "Player returned non-zero status code of %s, error trace:\n%s",
-                retcode[0],
-                u8str(retcode[1]),
+                response[0],
+                u8str(response[1]),
             )
             return False
         return True

@@ -42,7 +42,7 @@ class TCPFlowProtocol(asyncio.SubprocessProtocol):
             self._future = self._loop.create_future()
         elif fd == 2:
             for e in data.decode("utf8").splitlines():
-                self.error_data += e + "\n"
+                self.error_data += f"{e}\n"
             # program prints status stuff into stderr so we have to ignore it
             for status in "listening", "reportfilename":
                 if status in self.error_data.lower() or len(self.error_data) <= 2:
@@ -51,8 +51,8 @@ class TCPFlowProtocol(asyncio.SubprocessProtocol):
 
     async def yielder(self):
         """
-        Yielding async generator that turns tcpflow output into a single string
-        of hex encoded bytes. This function is operable only when tcpflow is run
+        Yielding async generator that returns bytes.
+        This function is operable only when tcpflow is run
         with and only -B and -C arguments.
         """
         while not self.stopped:
@@ -106,7 +106,7 @@ class Mousapi:
         args = list()
         args.append("tcpflow")
         args.append("-BC")
-        args.append("-X" + devnull)
+        args.append(f"-X{devnull}")
 
         for i in "community", "game":
             transport, protocol = await self.loop.subprocess_exec(
@@ -209,8 +209,8 @@ class Mousapi:
         errors = list()
         for task in pending:
             task.cancel()
-            # # Now we should await task to execute it's cancellation.
-            # # Cancelled task raises asyncio.CancelledError that we can suppress:
+            # Now we should await task to execute it's cancellation.
+            # Cancelled task raises asyncio.CancelledError that we can suppress:
             with suppress(asyncio.CancelledError):
                 try:
                     self.loop.run_until_complete(task)
