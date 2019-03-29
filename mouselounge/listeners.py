@@ -22,7 +22,6 @@ class Listeners(namedtuple("Listeners", ("callbacks", "queue"))):
 
     def process(self):
         """Process queue for these listeners"""
-        # with self.lock:
 
         callbacks = copy(self.callbacks)
 
@@ -48,7 +47,6 @@ class Listeners(namedtuple("Listeners", ("callbacks", "queue"))):
     def add(self, callback_type, callback):
         """Add a new listener"""
 
-        # with self.lock:
         self.callbacks[callback_type].append(callback)
 
     def enqueue(self, item_type, item):
@@ -56,13 +54,11 @@ class Listeners(namedtuple("Listeners", ("callbacks", "queue"))):
 
         if not isinstance(item, tuple):
             raise ValueError("I can only process tuples!")
-        # with self.lock:
         self.queue[item_type].append(item)
 
     def __len__(self):
         """Return number of listeners in collection"""
 
-        # with self.lock:
         return len(self.callbacks)
 
 

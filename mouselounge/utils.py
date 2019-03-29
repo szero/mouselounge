@@ -65,12 +65,15 @@ def u8str(s):
 
 
 class MPV_IPC_Client:
+
+    recv_size = 2 ** 12
+
     def __init__(self):
-        self.fileset = set()
-        self.socket_file = self.create_tmp_filepath("mpvipcsocket")
+        self.__fileset = set()
+        self.socket_file = self.create_tmp_filepath("mpvipcsocket", True)
         self.soc = socket.socket(socket.AF_UNIX)
         self.soc.settimeout(5)
-        self._finalizer = finalize(self, self.close)
+        self.__finalizer = finalize(self, self.clean_exit)
 
     def connect(self):
         try:
@@ -84,7 +87,8 @@ class MPV_IPC_Client:
         data = f"{json.dumps(data)}\n"
         data = data.encode("utf8")
         self.soc.send(data)
-        for resp in [resp for resp in self.soc.recv(1024).split(b"\n") if resp.strip()]:
+        received = self.soc.recv(self.recv_size).split(b"\n")
+        for resp in [resp for resp in received if resp.strip()]:
             try:
                 resp = json.loads(resp, encoding="utf8")
             except json.decoder.JSONDecodeError:
@@ -94,16 +98,18 @@ class MPV_IPC_Client:
             if error and error != "success":
                 raise ConnectionError(error)
 
-    def create_tmp_filepath(self, fname):
+    def create_tmp_filepath(self, fname, is_socket=False):
         if not isinstance(fname, str):
             raise ValueError("Your filename must be a string")
         tmp_dir = os.environ.get("XDG_RUNTIME_DIR")
         if tmp_dir:
             tmp_file = f"{tmp_dir}/{fname}"
-            self.fileset.add(tmp_file)
+            if not is_socket:
+                self.__fileset.add(tmp_file)
             return tmp_file
         tmp_file = f"{gettempdir()}/{fname}"
-        self.fileset.add(tmp_file)
+        if not is_socket:
+            self.__fileset.add(tmp_file)
         return tmp_file
 
     def is_socket_avaliable(self):
@@ -112,12 +118,19 @@ class MPV_IPC_Client:
         return False
 
     def clean_exit(self):
-        self._finalizer()
-
-    def close(self):
-        with suppress(OSError):
-            self.soc.shutdown(socket.SHUT_RDWR)
-            self.soc.close()
-        for file in self.fileset:
+        """
+        Finalizer gets called when the instance is garbage collected,
+        calling it explicitly is optional.
+        """
+        self.close_socket()
+        for file in self.__fileset:
             with suppress(FileNotFoundError):
                 os.remove(file)
+
+    def close_socket(self):
+        with suppress(OSError):
+            self.send_data({"command": ["quit"]})
+            self.soc.shutdown(socket.SHUT_RDWR)
+            self.soc.close()
+        with suppress(FileNotFoundError):
+            os.remove(self.socket_file)

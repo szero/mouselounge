@@ -90,6 +90,7 @@ class Mousapi:
         self.community_transport = None
         self.community_protocol = None
         self.retcodes = None
+        self.interrupted = False
         self.community = ["tcp and src 164.132.202.12 and greater 69"]
         self.game = [
             "tcp and net 5.135.0.0/16 or net 176.31.0.0/16 "
@@ -177,12 +178,13 @@ class Mousapi:
         if not len(self.listener):
             raise RuntimeError("I got nothing to listen to!")
 
-        def handler(_signum, _frame):
-            nonlocal self
+        def handler(signal):
             self.global_stop = True
-            LOGGER.info("User exited with SIGQUIT")
+            self.interrupted = True
+            LOGGER.info("User exited with %s", signal)
 
-        signal.signal(signal.SIGQUIT, handler)
+        self.loop.add_signal_handler(signal.SIGQUIT, handler, "SIGQUIT")
+        self.loop.add_signal_handler(signal.SIGINT, handler, "SIGINT")
 
         self._append_tasks()
 
@@ -215,7 +217,8 @@ class Mousapi:
                 try:
                     self.loop.run_until_complete(task)
                 except TCPFlowError:
-                    errors.append((print_coro(task), task.exception()))
+                    if not self.interrupted:
+                        errors.append((print_coro(task), task.exception()))
 
         self.loop.close()
         if self.retcodes is not None:
@@ -223,6 +226,7 @@ class Mousapi:
                 LOGGER.error("\n%s returned: %s", coro, ex)
 
         LOGGER.info("See ya around")
+        if self.interrupted:
+            raise KeyboardInterrupt
         if errors:
-            return 1
-        return 0
+            raise TCPFlowError

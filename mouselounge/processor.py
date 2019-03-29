@@ -29,7 +29,6 @@ import subprocess
 LOGGER = logging.getLogger(__name__)
 
 
-
 def _init_worker():
     try:
         # workaround for fucken pool workers being retarded
@@ -52,7 +51,7 @@ def _init_worker():
 
 def _run_process(*args, **kwds):
     try:
-        event = kwds.get("event")
+        event = kwds.pop("event", False)
         if event:
             event.clear()
         proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -68,15 +67,12 @@ def _run_process(*args, **kwds):
                     proc.terminate()
                     stdout, stderr = proc.communicate()
                     return proc.returncode, stdout, stderr
-    except (ValueError, BrokenPipeError):
+    except (ValueError, BrokenPipeError, AttributeError):
         # Sometimes communicate throws ValueError related to file object.
         # I think its related to low timeout value and using Popen in multiple
         # processes. Happens only during process termination?
         # BrokenPipeError happens if we SIGQUIT and the Manager().Event()
         # gets closed while this process is still running.
-        return 0, b"", b""
-    except AttributeError:
-        LOGGER.warning("No event passed, skipping execution!")
         return 0, b"", b""
     except Exception as ex:
         LOGGER.exception("ex running")
@@ -88,7 +84,7 @@ class Processor:
         self.pool = mp.Pool(5, initializer=_init_worker, maxtasksperchild=5)
 
     def __call__(self, callback, *args, **kwargs):
-        LOGGER.debug("running %r", args)
+        LOGGER.debug("running %r, %r", args, kwargs)
         try:
             self.pool.apply_async(
                 _run_process, args, kwargs, callback, error_callback=self.error

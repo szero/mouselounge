@@ -29,6 +29,7 @@ from time import localtime
 import logging
 import html
 import re
+import os
 
 
 from colorama import init, Fore  # , Back, Style
@@ -56,16 +57,16 @@ class WebManager(BaseManager):
     cooldown = LRUCache(maxsize=10)
     timeout = 60
 
-    # def __init__(self, *args, **kw):
     def __init__(self):
         super().__init__()
         if isinstance(self.needle, str):
             self.needle = self.needle, 0
         if self.needle and isinstance(self.needle[0], str):
             self.needle = re.compile(self.needle[0]), self.needle[1]
-        # self.processor = Processor()
         self.mpvclient = MPV_IPC_Client()
         self.mpvcfg = self.mpvclient.create_tmp_filepath("mpvcfg")
+        # making this config allows stopping the video without
+        # killing the mpv process
         with open(self.mpvcfg, "w") as cfg:
             cfg.write("Q quit\n")
             cfg.write("q stop\n")
@@ -108,16 +109,19 @@ class WebManager(BaseManager):
                 LOGGER.exception("failed to process")
         return True
 
-    def process_callback(self, _response):
+    def clean_disconnect(self):
         self.ipc_ready = False
         self.mpv_started = False
-        self.mpvclient.close()
+        self.mpvclient.close_socket()
+
+    def process_callback(self, _response):
+        self.clean_disconnect()
 
     def start_mpv(self):
         if self.mpv_started:
             return
-        # making this config allows stopping the video without
-        # killing the mpv process
+        if os.access(self.mpvclient.socket_file, os.F_OK):
+            os.remove(self.mpvclient.socket_file)
         self.run_process(
             self.process_callback,
             "mpv",
@@ -129,7 +133,6 @@ class WebManager(BaseManager):
             f"--input-ipc-server={self.mpvclient.socket_file}",
             "--ytdl-raw-options=format="
             "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/webm/mp4/best",
-            # event=self.event,
         )
         self.mpv_started = True
         self.connect_to_mpv()
@@ -141,11 +144,11 @@ class WebManager(BaseManager):
         self.mpvclient.connect()
         self.ipc_ready = True
 
-    def send_data_to_mpv(self, url):
+    def send_data_to_mpv(self, data):
         if not self.ipc_ready:
-            self.call_later(1, self.send_data_to_mpv, url)
+            self.call_later(1, self.send_data_to_mpv, data)
             return
-        self.mpvclient.send_data(url)
+        self.mpvclient.send_data(data)
 
     def handle_vid(self, url):
         self.start_mpv()
@@ -208,9 +211,7 @@ class WebManager(BaseManager):
 
 class XYoutuberGameManager(WebManager, GameManager):
     def process_callback(self, response):
-        self.ipc_ready = False
-        self.mpv_started = False
-        self.mpvclient.close()
+        self.clean_disconnect()
         if response[0]:
             if int(response[0]) == 4:
                 return True
@@ -225,9 +226,7 @@ class XYoutuberGameManager(WebManager, GameManager):
 
 class XYoutuberCommunityManager(WebManager, CommunityManager):
     def process_callback(self, response):
-        self.ipc_ready = False
-        self.mpv_started = False
-        self.mpvclient.close()
+        self.clean_disconnect()
         if response[0]:
             if int(response[0]) == -9 or int(response[0]) == 4:
                 print(f"{Fore.YELLOW}We got a skipper!\n")

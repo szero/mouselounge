@@ -5,9 +5,11 @@ import sys
 import os
 import datetime as dt
 import signal
+
 from shutil import which
 
-from .mousapi import Mousapi
+
+from .mousapi import Mousapi, TCPFlowError
 from .handler import Managers, Handler
 from ._version import __fulltitle__
 
@@ -104,7 +106,6 @@ def setup():
     LOGGER.info("Starting up %s", __fulltitle__)
 
     signal.signal(signal.SIGCHLD, sigchld_handler)
-    # signal.signal(signal.SIGCHLD, signal.SIG_IGN)
     signal.signal(signal.SIGUSR2, debug_handler)
 
     managers = Managers()
@@ -123,8 +124,9 @@ def run():
     try:
         sys.exit(setup())
     except KeyboardInterrupt:
-        LOGGER.info("User exited with SIGINT")
         sys.exit(1)
+    except TCPFlowError:
+        sys.exit(2)
 
 
 if __name__ == "__main__":
