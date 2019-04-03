@@ -1,12 +1,10 @@
 from functools import partial
-from ..processor import Processor
+from ..processor import PROCESSOR
 
 __all__ = ["BaseManager", "CommunityManager", "GameManager"]
 
-PROCESSOR = Processor()
 
 class BaseManager:
-
     def run_process(self, callback, *args, **kwargs):
         self.call_soon(partial(PROCESSOR, callback, *args, **kwargs))
 

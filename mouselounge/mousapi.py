@@ -5,9 +5,8 @@ import inspect
 import signal
 
 
-from struct import unpack
-from struct import error as StructError
 from os import devnull
+from shutil import which
 from contextlib import suppress
 from re import search
 
@@ -17,7 +16,7 @@ from .protocol import PROTO, ProtocolHandler
 LOGGER = logging.getLogger(__name__)
 
 
-class TCPFlowError(Exception):
+class PacketFetcherError(Exception):
     def __init__(self, msg=""):
         super().__init__()
         self.msg = msg
@@ -25,10 +24,10 @@ class TCPFlowError(Exception):
     def __str__(self):
         if self.msg:
             return str(self.msg).strip()
-        return TCPFlowError.__name__
+        return PacketFetcherError.__name__
 
 
-class TCPFlowProtocol(asyncio.SubprocessProtocol):
+class PacketFetcherProtocol(asyncio.SubprocessProtocol):
     def __init__(self, loop, name):
         self.stopped = False
         self.error_data = str()
@@ -43,7 +42,7 @@ class TCPFlowProtocol(asyncio.SubprocessProtocol):
         elif fd == 2:
             for e in data.decode("utf8").splitlines():
                 self.error_data += f"{e}\n"
-            # program prints status stuff into stderr so we have to ignore it
+            # tcpflow prints status stuff into stderr so we have to ignore it
             for status in "listening", "reportfilename":
                 if status in self.error_data.lower() or len(self.error_data) <= 2:
                     self.error_data = str()
@@ -51,9 +50,9 @@ class TCPFlowProtocol(asyncio.SubprocessProtocol):
 
     async def yielder(self):
         """
-        Yielding async generator that returns bytes.
-        This function is operable only when tcpflow is run
-        with and only -B and -C arguments.
+        Yielding async generator that returns bytes objects.
+        This function is operable only when tcpdump is run with
+        "-Uw-" arguments or when tcpflow is run with "-0BC" arguments.
         """
         while not self.stopped:
             try:
@@ -69,7 +68,7 @@ class TCPFlowProtocol(asyncio.SubprocessProtocol):
         self._future.cancel()
 
     def process_exited(self):
-        LOGGER.debug("%s TCPFlow instance exited.", self._name.capitalize())
+        LOGGER.debug("PacketFetcher %s instance exited.", self._name.capitalize())
         self.stopped = True
         self._future.cancel()
 
@@ -105,51 +104,62 @@ class Mousapi:
 
     async def _init_protocol_and_transport(self):
         args = list()
-        args.append("tcpflow")
-        args.append("-BC")
-        args.append(f"-X{devnull}")
+        if which("tcpdump"):
+            args.append("tcpdump")
+            args.append("-Uw-")
+        elif which("tcpflow"):
+            args.append("tcpflow")
+            args.append("-0CB")
+            args.append(f"-X{devnull}")
+        else:
+            self.event.set()
+            asyncio.ensure_future(self.loop.shutdown_asyncgens())
+            raise RuntimeError(
+                "You doesn't have a program that can fetch packets!\n"
+                "Install tcpdump or tcpflow and try again!"
+            )
 
         for i in "community", "game":
             transport, protocol = await self.loop.subprocess_exec(
-                lambda x=i: TCPFlowProtocol(self.loop, x),
+                lambda x=i: PacketFetcherProtocol(self.loop, x),
                 *args + getattr(self, i),
                 stdout=asyncio.subprocess.PIPE,
                 stdin=None,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
             )
-            setattr(self, i + "_transport", transport)
-            setattr(self, i + "_protocol", protocol)
+            setattr(self, f"{i}_transport", transport)
+            setattr(self, f"{i}_protocol", protocol)
         self.event.set()
 
     async def _handle_community_server_data(self):
         await self.event.wait()
         async for line in self.community_protocol.yielder():
-            try:
-                event = unpack(">I", line[:4])[0]
-            except StructError:
-                continue
-            LOGGER.debug("What's the community event: %s", event)
-            if event in self.protohandler:
-                self.listener.enqueue(PROTO[event], self.protohandler(event, line))
-                self.listener.process()
+            LOGGER.debug("What's the community data: %s", line)
+            for key in self.protohandler.keys():
+                match = search(key, line)
+                if match:
+                    self.listener.enqueue(
+                        PROTO[key], self.protohandler(key, line, match)
+                    )
+                    self.listener.process()
         if self.community_protocol.error_data:
             self.game_transport.close()
-            raise TCPFlowError(self.community_protocol.error_data)
+            raise PacketFetcherError(self.community_protocol.error_data)
 
     async def _handle_game_server_data(self):
         await self.event.wait()
         async for line in self.game_protocol.yielder():
-            try:
-                event = unpack(">I", line[2:6])[0]
-            except StructError:
-                continue
-            LOGGER.debug("What's the game event: %s", event)
-            if event in self.protohandler:
-                self.listener.enqueue(PROTO[event], self.protohandler(event, line))
-                self.listener.process()
+            LOGGER.debug("What's the game data: %s", line)
+            for key in self.protohandler.keys():
+                match = search(key, line)
+                if match:
+                    self.listener.enqueue(
+                        PROTO[key], self.protohandler(key, line, match)
+                    )
+                    self.listener.process()
         if self.game_protocol.error_data:
             self.community_transport.close()
-            raise TCPFlowError(self.game_protocol.error_data)
+            raise PacketFetcherError(self.game_protocol.error_data)
 
     def __enter__(self):
         return self
@@ -162,11 +172,13 @@ class Mousapi:
 
     @property
     def global_stop(self):
-        return self.community_protocol.stopped or self.game_protocol.stopped
+        with suppress(AttributeError):
+            return self.community_protocol.stopped or self.game_protocol.stopped
 
     @global_stop.setter
     def global_stop(self, value):
-        self.community_protocol.stopped = self.game_protocol.stopped = value
+        with suppress(AttributeError):
+            self.community_protocol.stopped = self.game_protocol.stopped = value
 
     def _append_tasks(self):
         fnames_fobjs = inspect.getmembers(self, predicate=inspect.iscoroutinefunction)
@@ -190,9 +202,7 @@ class Mousapi:
 
         LOGGER.debug("Current coroutines: %s", self.tasklist)
         self.retcodes, _pending = self.loop.run_until_complete(
-            asyncio.wait(
-                [fobj() for _fname, fobj in Mousapi.tasklist]
-            )
+            asyncio.wait([fobj() for _fname, fobj in Mousapi.tasklist])
         )
 
     def gracefull_close(self):
@@ -203,7 +213,7 @@ class Mousapi:
 
         self.global_stop = True
 
-        with suppress(ProcessLookupError):
+        with suppress(ProcessLookupError, AttributeError):
             self.community_transport.terminate()
             self.game_transport.terminate()
 
@@ -216,10 +226,9 @@ class Mousapi:
             with suppress(asyncio.CancelledError):
                 try:
                     self.loop.run_until_complete(task)
-                except TCPFlowError:
+                except PacketFetcherError:
                     if not self.interrupted:
                         errors.append((print_coro(task), task.exception()))
-
         self.loop.close()
         if self.retcodes is not None:
             for coro, ex in errors:
@@ -229,4 +238,4 @@ class Mousapi:
         if self.interrupted:
             raise KeyboardInterrupt
         if errors:
-            raise TCPFlowError
+            raise PacketFetcherError

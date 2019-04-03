@@ -26,19 +26,22 @@ import logging
 import socket
 import json
 import os
+import string
 
 from stat import S_ISSOCK
 from contextlib import suppress
 from tempfile import gettempdir
 from functools import lru_cache
 from weakref import finalize
+from threading import Thread
+from random import choices
 
 
 from requests import Session
 
 from ._version import __version__
 
-__all__ = ["requests", "get_text", "get_json", "MPV_IPC_Client"]
+__all__ = ["requests", "get_text", "get_json", "rand_string", "MPV_IPC_Client"]
 
 LOGGER = logging.getLogger(__name__)
 
@@ -64,50 +67,73 @@ def u8str(s):
     return str(s, encoding="utf-8", errors="ignore")
 
 
+def rand_string(length):
+    return "".join(choices(string.ascii_letters + string.digits, k=length))
+
+
 class MPV_IPC_Client:
 
-    recv_size = 2 ** 12
+    recv_size = 2 ** 10
 
     def __init__(self):
-        self.__fileset = set()
+        self.connected = False
         self.socket_file = self.create_tmp_filepath("mpvipcsocket", True)
-        self.soc = socket.socket(socket.AF_UNIX)
-        self.soc.settimeout(5)
+        self._soc = socket.socket(socket.AF_UNIX)
+        self._soc.settimeout(1)
+        self.__fileset = set()
         self.__finalizer = finalize(self, self.clean_exit)
+        self._receiving_task = Thread(daemon=True, target=self._receiver)
+
+    def _receiver(self):
+        while self.connected:
+            try:
+                received = self._soc.recv(self.recv_size).split(b"\n")
+            except socket.timeout:
+                continue
+            for resp in [resp for resp in received if resp.strip()]:
+                try:
+                    resp = json.loads(resp, encoding="utf8")
+                except json.decoder.JSONDecodeError:
+                    LOGGER.exception("Error during decoding for line:\n%s", resp)
+                    continue
+                self.receiver_callback(resp)
+                error = resp.get("error")
+                if error and error != "success":
+                    raise ConnectionError(error)
+
+    def receiver_callback(self, response):
+        pass
 
     def connect(self):
         try:
-            self.soc.connect(self.socket_file)
-        except OSError:
-            self.soc = socket.socket(socket.AF_UNIX)
-            self.soc.settimeout(5)
-            self.soc.connect(self.socket_file)
+            self._soc.connect(self.socket_file)
+            self.connected = True
+            self._receiving_task.start()
+        except (OSError, RuntimeError):
+            self.connected = False
+            self._receiving_task.join()
+            self._soc = socket.socket(socket.AF_UNIX)
+            self._soc.settimeout(1)
+            self._soc.connect(self.socket_file)
+            self.connected = True
+            self._receiving_task = Thread(daemon=True, target=self._receiver)
+            self._receiving_task.start()
 
     def send_data(self, data):
         data = f"{json.dumps(data)}\n"
         data = data.encode("utf8")
-        self.soc.send(data)
-        received = self.soc.recv(self.recv_size).split(b"\n")
-        for resp in [resp for resp in received if resp.strip()]:
-            try:
-                resp = json.loads(resp, encoding="utf8")
-            except json.decoder.JSONDecodeError:
-                LOGGER.exception(resp)
-                continue
-            error = resp.get("error")
-            if error and error != "success":
-                raise ConnectionError(error)
+        self._soc.send(data)
 
     def create_tmp_filepath(self, fname, is_socket=False):
         if not isinstance(fname, str):
             raise ValueError("Your filename must be a string")
         tmp_dir = os.environ.get("XDG_RUNTIME_DIR")
         if tmp_dir:
-            tmp_file = f"{tmp_dir}/{fname}"
+            tmp_file = f"{tmp_dir}/{fname}_{rand_string(6)}"
             if not is_socket:
                 self.__fileset.add(tmp_file)
             return tmp_file
-        tmp_file = f"{gettempdir()}/{fname}"
+        tmp_file = f"{gettempdir()}/{fname}_{rand_string(6)}"
         if not is_socket:
             self.__fileset.add(tmp_file)
         return tmp_file
@@ -128,9 +154,12 @@ class MPV_IPC_Client:
                 os.remove(file)
 
     def close_socket(self):
+        self.connected = False
+        with suppress(RuntimeError):
+            self._receiving_task.join()
         with suppress(OSError):
             self.send_data({"command": ["quit"]})
-            self.soc.shutdown(socket.SHUT_RDWR)
-            self.soc.close()
+            self._soc.shutdown(socket.SHUT_RDWR)
+            self._soc.close()
         with suppress(FileNotFoundError):
             os.remove(self.socket_file)

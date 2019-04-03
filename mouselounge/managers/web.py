@@ -25,6 +25,7 @@ THE SOFTWARE.
 from time import time
 from time import strftime
 from time import localtime
+from threading import Timer
 
 import logging
 import html
@@ -48,7 +49,7 @@ __all__ = ["XYoutuberCommunityManager", "XYoutuberGameManager"]
 LOGGER = logging.getLogger(__name__)
 
 
-class WebManager(BaseManager):
+class WebManager(BaseManager, MPV_IPC_Client):
     needle = r"https?://(?:www\.)?(?:youtu\.be/\S+|youtube\.com/(?:v|watch|embed)\S+)"
     description = re.compile(r'itemprop="description"\s+content="(.+?)"', re.M | re.S)
     duration = re.compile(r'itemprop="duration"\s+content="(.+?)"', re.M | re.S)
@@ -63,8 +64,9 @@ class WebManager(BaseManager):
             self.needle = self.needle, 0
         if self.needle and isinstance(self.needle[0], str):
             self.needle = re.compile(self.needle[0]), self.needle[1]
-        self.mpvclient = MPV_IPC_Client()
-        self.mpvcfg = self.mpvclient.create_tmp_filepath("mpvcfg")
+        self.mpvcfg = self.create_tmp_filepath("mpvcfg")
+        # kill mpv process after 30 mins of idling
+        self.mpvtimeout = None
         # making this config allows stopping the video without
         # killing the mpv process
         with open(self.mpvcfg, "w") as cfg:
@@ -78,6 +80,8 @@ class WebManager(BaseManager):
         return url
 
     def handle_data(self, data):
+        if not data:
+            return True
         needle, group = self.needle
         now = time()
         if len(data) == 1:
@@ -109,28 +113,37 @@ class WebManager(BaseManager):
                 LOGGER.exception("failed to process")
         return True
 
-    def clean_disconnect(self):
+    def process_callback(self, response):
         self.ipc_ready = False
         self.mpv_started = False
-        self.mpvclient.close_socket()
-
-    def process_callback(self, _response):
-        self.clean_disconnect()
+        self.close_socket()
+        if response[0]:
+            if int(response[0]) == 4:
+                return True
+            LOGGER.error(
+                "Player returned non-zero status code of %s, error trace:\n%s",
+                response[0],
+                u8str(response[1]),
+            )
+            return False
+        return True
 
     def start_mpv(self):
         if self.mpv_started:
             return
-        if os.access(self.mpvclient.socket_file, os.F_OK):
-            os.remove(self.mpvclient.socket_file)
+        if os.access(self.socket_file, os.F_OK):
+            os.remove(self.socket_file)
         self.run_process(
             self.process_callback,
             "mpv",
             "--idle=yes",
             "--loop-playlist=no",
             "--loop-file=no",
+            "--cache-file=TMP",
             f"--input-conf={self.mpvcfg}",
             # "--no-video",
-            f"--input-ipc-server={self.mpvclient.socket_file}",
+            f"--input-ipc-server={self.socket_file}",
+            # f"--input-ipc-server={self.mpvclient.socket_file}",
             "--ytdl-raw-options=format="
             "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/webm/mp4/best",
         )
@@ -138,21 +151,28 @@ class WebManager(BaseManager):
         self.connect_to_mpv()
 
     def connect_to_mpv(self):
-        if not self.mpvclient.is_socket_avaliable():
+        if not self.is_socket_avaliable():
             self.call_later(1, self.connect_to_mpv)
             return
-        self.mpvclient.connect()
+        self.connect()
         self.ipc_ready = True
 
     def send_data_to_mpv(self, data):
         if not self.ipc_ready:
             self.call_later(1, self.send_data_to_mpv, data)
             return
-        self.mpvclient.send_data(data)
+        self.send_data(data)
 
     def handle_vid(self, url):
+        if self.mpvtimeout:
+            self.mpvtimeout.cancel()
         self.start_mpv()
         data = {"command": ["loadfile", url]}
+        self.mpvtimeout = Timer(
+            30.0 * 60.0, lambda: self.send_data_to_mpv({"command": ["quit"]})
+        )
+        self.mpvtimeout.setDaemon(True)
+        self.mpvtimeout.start()
         self.send_data_to_mpv(data)
 
     def onurl(self, url, rest):
@@ -210,31 +230,17 @@ class WebManager(BaseManager):
 
 
 class XYoutuberGameManager(WebManager, GameManager):
-    def process_callback(self, response):
-        self.clean_disconnect()
-        if response[0]:
-            if int(response[0]) == 4:
-                return True
-            LOGGER.error(
-                "Player returned non-zero status code of %s, error trace:\n%s",
-                response[0],
-                u8str(response[1]),
-            )
-            return False
-        return True
+    def receiver_callback(self, response):
+        LOGGER.debug("from game: %s", response)
 
 
 class XYoutuberCommunityManager(WebManager, CommunityManager):
-    def process_callback(self, response):
-        self.clean_disconnect()
-        if response[0]:
-            if int(response[0]) == -9 or int(response[0]) == 4:
-                print(f"{Fore.YELLOW}We got a skipper!\n")
-                return True
-            LOGGER.error(
-                "Player returned non-zero status code of %s, error trace:\n%s",
-                response[0],
-                u8str(response[1]),
-            )
-            return False
-        return True
+
+    last_event = None
+
+    def receiver_callback(self, response):
+        LOGGER.debug("from community: %s", response)
+        etype = response.get("event")
+        if self.last_event == "end-file" and etype == "start-file":
+            print(f"{Fore.YELLOW}We got a skipper!\n")
+        self.last_event = etype

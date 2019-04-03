@@ -95,3 +95,6 @@ class Processor:
     @staticmethod
     def error(*args, **kw):
         LOGGER.error("failed to run processor %r %r", args, kw)
+
+
+PROCESSOR = Processor()

@@ -9,7 +9,7 @@ import signal
 from shutil import which
 
 
-from .mousapi import Mousapi, TCPFlowError
+from .mousapi import Mousapi, PacketFetcherError
 from .handler import Managers, Handler
 from ._version import __fulltitle__
 
@@ -84,7 +84,7 @@ def sigchld_handler(_signum, _frame):
 
 
 def setup():
-    for prog in "tcpflow", "youtube-dl", "mpv":
+    for prog in "youtube-dl", "mpv":
         if which(prog) is None:
             print(f"Please install {prog} and try again.", file=sys.stderr)
             sys.exit(1)
@@ -125,7 +125,7 @@ def run():
         sys.exit(setup())
     except KeyboardInterrupt:
         sys.exit(1)
-    except TCPFlowError:
+    except PacketFetcherError:
         sys.exit(2)
 
 
