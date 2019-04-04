@@ -57,6 +57,7 @@ class WebManager(BaseManager, MPV_IPC_Client):
     # needle = re.compile("^$"), 0
     cooldown = LRUCache(maxsize=10)
     timeout = 60
+    mpv_idle_timeout = 30.0 * 60.0
 
     def __init__(self):
         super().__init__()
@@ -163,18 +164,6 @@ class WebManager(BaseManager, MPV_IPC_Client):
             return
         self.send_data(data)
 
-    def handle_vid(self, url):
-        if self.mpvtimeout:
-            self.mpvtimeout.cancel()
-        self.start_mpv()
-        data = {"command": ["loadfile", url]}
-        self.mpvtimeout = Timer(
-            30.0 * 60.0, lambda: self.send_data_to_mpv({"command": ["quit"]})
-        )
-        self.mpvtimeout.setDaemon(True)
-        self.mpvtimeout.start()
-        self.send_data_to_mpv(data)
-
     def onurl(self, url, rest):
         title, duration, desc = self.extract(
             url, self.title, self.duration, self.description
@@ -184,9 +173,26 @@ class WebManager(BaseManager, MPV_IPC_Client):
         title = self.unescape(title.group(1))
         if not title:
             return True
-        self.handle_vid(url)
+        duration_secs = 0.0
         if duration:
-            duration = str(isodate.parse_duration(duration.group(1)))
+            duration_secs = isodate.parse_duration(duration.group(1))
+            duration = str(duration_secs)
+            duration_secs = duration_secs.total_seconds()
+        if self.mpvtimeout:
+            self.mpvtimeout.cancel()
+        self.start_mpv()
+        data = {"command": ["loadfile", url]}
+        timeout = (
+            self.mpv_idle_timeout
+            if duration_secs < self.mpv_idle_timeout
+            else duration_secs
+        )
+        self.mpvtimeout = Timer(
+            timeout, lambda: self.send_data_to_mpv({"command": ["quit"]})
+        )
+        self.mpvtimeout.setDaemon(True)
+        self.mpvtimeout.start()
+        self.send_data_to_mpv(data)
         desc = self.unescape(desc.group(1))
         print(
             strftime(
