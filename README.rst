@@ -2,11 +2,10 @@
 mouselounge
 ===========
 
-Play videos in your tribehouse while running the client outisde of the browser
-(using steam client for example).
+Play videos in transformice while using non-browser game clients.
+(using steam client for example)
 
-Playing videos in music rooms works, but videos that are longer than 5 minutes
-won't be closed automatically.
+Works both in tribehouses and music rooms!
 
 This works only on linux atm.
 
@@ -40,13 +39,13 @@ to capture packets by using ``setcap`` program and issuing it like this:
 
     sudo setcap 'CAP_NET_RAW+eip CAP_NET_ADMIN+eip' /usr/bin/tcpflow
 
-Running
-~~~~~~~
+Usage
+~~~~~
 
 Run ``mouselounge`` in your terminal!
 
-Thats it! Now you can paste your links inside music input box like you always did and
-but now mpv window with given video will open and information about posted youtube
-videos will be printend.
+Thats it! Now you can paste your links inside music input box like you always did,
+but now, mpv window with given video will open and information about posted youtube
+videos will be printed.
 
 To quit, either press ``Ctrl + C`` or ``Ctrl + \``
