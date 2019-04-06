@@ -134,7 +134,7 @@ class Mousapi:
     async def _handle_community_server_data(self):
         await self.event.wait()
         async for line in self.community_protocol.yielder():
-            LOGGER.debug("What's the community data: %s", line)
+            # LOGGER.debug("What's the community data: %s", line)
             for key in self.protohandler.keys():
                 match = search(key, line)
                 if match:
@@ -149,7 +149,7 @@ class Mousapi:
     async def _handle_game_server_data(self):
         await self.event.wait()
         async for line in self.game_protocol.yielder():
-            LOGGER.debug("What's the game data: %s", line)
+            # LOGGER.debug("What's the game data: %s", line)
             for key in self.protohandler.keys():
                 match = search(key, line)
                 if match:

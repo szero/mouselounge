@@ -66,14 +66,16 @@ class ProtocolHandler(dict):
             video_name = line[link_length + 2 : video_name_length].decode("utf8")
             # nick lenght is integer instead of short??
             # there are two shorts next to eachother, that look like integer
-            nick_length = (video_name_length + 4) + unpack(
-                ">H", line[video_name_length + 2 : video_name_length + 4]
-            )[0]
-            nick = line[video_name_length + 4 : nick_length].decode("ascii")
-
+            try:
+                nick_length = (video_name_length + 4) + unpack(
+                    ">H", line[video_name_length + 2 : video_name_length + 4]
+                )[0]
+                nick = line[video_name_length + 4 : nick_length].decode("ascii")
+            except StructError:
+                return (link, video_name)
             LOGGER.debug("Data in musicroom: \n%s \n%s \n%s", link, video_name, nick)
             return link, video_name, nick
-        except (UnicodeDecodeError, StructError) as ex:
+        except UnicodeDecodeError as ex:
             LOGGER.exception("%s line failed with:\n%s", line, ex)
             return ()
 

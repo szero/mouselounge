@@ -87,7 +87,7 @@ class WebManager(BaseManager, MPV_IPC_Client):
         now = time()
         if len(data) == 1:
             url = data[0]
-            rest = None
+            rest = list()
         else:
             # skip url verification if we are in the music room
             url = f"https://www.youtube.com/watch?v={data[0]}"
@@ -181,17 +181,17 @@ class WebManager(BaseManager, MPV_IPC_Client):
         if self.mpvtimeout:
             self.mpvtimeout.cancel()
         self.start_mpv()
-        data = {"command": ["loadfile", url]}
         timeout = (
             self.mpv_idle_timeout
             if duration_secs < self.mpv_idle_timeout
-            else duration_secs
+            else duration_secs + 30.0
         )
         self.mpvtimeout = Timer(
             timeout, lambda: self.send_data_to_mpv({"command": ["quit"]})
         )
         self.mpvtimeout.setDaemon(True)
         self.mpvtimeout.start()
+        data = {"command": ["loadfile", url]}
         self.send_data_to_mpv(data)
         desc = self.unescape(desc.group(1))
         print(
@@ -200,7 +200,7 @@ class WebManager(BaseManager, MPV_IPC_Client):
                 localtime(),
             )
         )
-        if rest is not None:
+        if len(rest) > 1:
             print(f"{Fore.CYAN}Poster: {Fore.RESET}{rest[1]}")
         yt = f"{Fore.RED}Youtube: {Fore.RESET}"
         print(f"{Fore.MAGENTA}Link: {Fore.RESET}{url}")
@@ -236,6 +236,7 @@ class WebManager(BaseManager, MPV_IPC_Client):
 
 
 class XYoutuberGameManager(WebManager, GameManager):
+
     def receiver_callback(self, response):
         LOGGER.debug("from game: %s", response)
 
