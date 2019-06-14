@@ -74,7 +74,6 @@ class WebManager(BaseManager, MPV_IPC_Client):
             cfg.write("Q quit\n")
             cfg.write("q stop\n")
         self.mpv_started = False
-        self.ipc_ready = False
 
     @staticmethod
     def fixup(url):
@@ -115,7 +114,6 @@ class WebManager(BaseManager, MPV_IPC_Client):
         return True
 
     def process_callback(self, response):
-        self.ipc_ready = False
         self.mpv_started = False
         self.close_socket()
         if response[0]:
@@ -144,7 +142,6 @@ class WebManager(BaseManager, MPV_IPC_Client):
             f"--input-conf={self.mpvcfg}",
             # "--no-video",
             f"--input-ipc-server={self.socket_file}",
-            # f"--input-ipc-server={self.mpvclient.socket_file}",
             "--ytdl-raw-options=format="
             "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/webm/mp4/best",
         )
@@ -156,10 +153,9 @@ class WebManager(BaseManager, MPV_IPC_Client):
             self.call_later(1, self.connect_to_mpv)
             return
         self.connect()
-        self.ipc_ready = True
 
     def send_data_to_mpv(self, data):
-        if not self.ipc_ready:
+        if not self.connected:
             self.call_later(1, self.send_data_to_mpv, data)
             return
         self.send_data(data)
@@ -191,8 +187,7 @@ class WebManager(BaseManager, MPV_IPC_Client):
         )
         self.mpvtimeout.setDaemon(True)
         self.mpvtimeout.start()
-        data = {"command": ["loadfile", url]}
-        self.send_data_to_mpv(data)
+        self.send_data_to_mpv({"command": ["loadfile", url]})
         desc = self.unescape(desc.group(1))
         print(
             strftime(

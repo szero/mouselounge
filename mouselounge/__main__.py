@@ -83,7 +83,7 @@ def sigchld_handler(_signum, _frame):
                 return
 
 
-def setup():
+def main():
     for prog in "youtube-dl", "mpv":
         if which(prog) is None:
             print(f"Please install {prog} and try again.", file=sys.stderr)
@@ -122,7 +122,7 @@ def setup():
 
 def run():
     try:
-        sys.exit(setup())
+        sys.exit(main())
     except KeyboardInterrupt:
         sys.exit(1)
     except PacketFetcherError:
