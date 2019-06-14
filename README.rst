@@ -28,7 +28,7 @@ Installation
 ~~~~~~~~~~~~
 ::
 
-    pip3 install https://github.com/szero/mouseloungue/archive/master.zip
+    pip3 install https://github.com/szero/mouselounge/archive/master.zip
 
 If you're using ``tcpdump``, it should be already configured and ready to use.
 As for ``tcpflow``, you would either have to run ``mouselounge``
