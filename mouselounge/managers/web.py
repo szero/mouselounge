@@ -143,6 +143,7 @@ class WebManager(BaseManager, MPV_IPC_Client):
             "--geometry=50%:50%",
             "--autofit=480",
             "--force-window=yes",
+            "--no-keepaspect-window",
             f"--input-conf={self.mpvcfg}",
             # "--no-video",
             f"--input-ipc-server={self.socket_file}",
