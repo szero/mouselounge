@@ -141,7 +141,7 @@ class WebManager(BaseManager, MPV_IPC_Client):
             "--cache-file=TMP",
             "--ontop",
             "--geometry=50%:50%",
-            "--autofit=480",
+            "--autofit=480x360",
             "--force-window=yes",
             "--no-keepaspect-window",
             f"--input-conf={self.mpvcfg}",

@@ -95,9 +95,18 @@ class Mousapi:
             "tcp and net 5.135.0.0/16 or net 176.31.0.0/16 "
             "and greater 69 and inbound"
         ]
+
         self.event = asyncio.Event()
         self.listener = Listeners()
         self.protohandler = ProtocolHandler()
+
+        def handler(signal):
+            self.global_stop = True
+            self.interrupted = True
+            LOGGER.info("User exited with %s", signal)
+
+        self.loop.add_signal_handler(signal.SIGQUIT, handler, "SIGQUIT")
+        self.loop.add_signal_handler(signal.SIGINT, handler, "SIGINT")
 
     def add_listener(self, event, data):
         self.listener.add(event, data)
@@ -189,14 +198,6 @@ class Mousapi:
     def listen(self):
         if not len(self.listener):
             raise RuntimeError("I got nothing to listen to!")
-
-        def handler(signal):
-            self.global_stop = True
-            self.interrupted = True
-            LOGGER.info("User exited with %s", signal)
-
-        self.loop.add_signal_handler(signal.SIGQUIT, handler, "SIGQUIT")
-        self.loop.add_signal_handler(signal.SIGINT, handler, "SIGINT")
 
         self._append_tasks()
 

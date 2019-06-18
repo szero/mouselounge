@@ -76,6 +76,9 @@ class ProtocolHandler(dict):
             LOGGER.debug("Data in musicroom: \n%s \n%s \n%s", link, video_name, nick)
             return link, video_name, nick
         except UnicodeDecodeError as ex:
+            if "'ascii'" in str(ex):
+                LOGGER.debug("%s line failed with:\n%s", line, ex)
+                return ()
             LOGGER.exception("%s line failed with:\n%s", line, ex)
             return ()
 
