@@ -12,10 +12,12 @@ This works only on linux atm.
 Requirements
 ~~~~~~~~~~~~
 
-Install those programs with your package manager or download them from the developers
-directly:
+Install those programs with your system package manager or download them from developers
+directly. If you chose the second option, remember to include directories with binaries
+of the programs in the `PATH <https://en.wikipedia.org/wiki/PATH_(variable)>`_ variable.
 
-Please use recent version of ``python3``.
+
+You must use ``python3.6`` or higher.
 
 - `mpv <https://mpv.io/installation>`_
 - `youtube-dl <https://github.com/ytdl-org/youtube-dl#installation>`_
@@ -26,6 +28,23 @@ Please use recent version of ``python3``.
 
 Installation
 ~~~~~~~~~~~~
+
+Requirements installation exaple for
+`apt <https://en.wikipedia.org/wiki/APT_(Package_Manager)>`_:
+
+::
+
+    apt update && apt install mpv youtube-dl tcpdump
+
+Requirements installation exaple for
+`pacman <https://wiki.archlinux.org/index.php/Pacman>`_:
+
+::
+
+    pacman -S mpv youtube-dl tcpdump
+
+Installing the main program:
+
 ::
 
     pip3 install https://github.com/szero/mouselounge/archive/master.zip
@@ -45,12 +64,8 @@ As for ``tcpflow``, the command looks like this this.
 
     sudo setcap 'CAP_NET_RAW+eip CAP_NET_ADMIN+eip' "$(type tcpflow | cut -f3 -d' ')"
 
-If you don't like giving programs extended rights permanently you can skips the step above
-and use the program like so:
-
-::
-
-    sudo mouselounge
+If you don't like giving programs extended rights permanently you can skip the steps above
+and just run ``mouselounge`` with sudo.
 
 Usage
 ~~~~~
@@ -59,7 +74,7 @@ Run ``mouselounge`` in your terminal!
 
 Thats it! Now you can paste your links inside music input box like you always did,
 but now, mpv window with given video will open and information about posted youtube
-videos will be printed.
+videos will be printed in the termianl.
 
 To quit, either press ``Ctrl + C`` or ``Ctrl + \``
 
@@ -69,6 +84,6 @@ FAQ
 1. I installed the thing and all of its dependiencies, it was working for some time and
    videos still appear in the terminal window but no video window appears anymore.
 
-- *This program depends on ``youtube-dl``. It always changes because youtube
-  changes it's API's all the time. If you can't see vids, try updating ``youtube-dl``
-  to the newest version first, from the link in Installation section preferably.*
+- *This program depends on youtube-dl. It always changes because youtube
+  changes it's API's all the time. If you can't see vids, try updating youtube-dl
+  to the newest version first from the link in Installation section preferably.*
