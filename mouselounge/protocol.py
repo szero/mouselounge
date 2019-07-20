@@ -45,8 +45,11 @@ class ProtocolHandler(dict):
     def play_vid_tribehouse(line, match):
         if line[match.end()] != 104:
             return ()
-        link = line[match.end():].decode("ascii")
-        LOGGER.debug("Link tribeplayer: %s", link)
+        try:
+            link = line[match.end():].decode("ascii")
+        except UnicodeDecodeError as ex:
+            LOGGER.debug("%s line failed with:\n%s", line, ex)
+            return ()
         return (link,)
 
     @staticmethod

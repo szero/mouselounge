@@ -29,14 +29,14 @@ You must use ``python3.6`` or higher.
 Installation
 ~~~~~~~~~~~~
 
-Requirements installation exaple for
+Requirements installation example for
 `apt <https://en.wikipedia.org/wiki/APT_(Package_Manager)>`_:
 
 ::
 
     apt update && apt install mpv youtube-dl tcpdump
 
-Requirements installation exaple for
+Requirements installation example for
 `pacman <https://wiki.archlinux.org/index.php/Pacman>`_:
 
 ::

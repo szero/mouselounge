@@ -1,7 +1,5 @@
 __pycache__/
-commands/
-volamain(wip).py
-arb.py
-__main__.py.old
+build/
+dist/
 mouselounge.egg-info/
 Session.vim
