@@ -75,7 +75,7 @@ class PacketFetcherProtocol(asyncio.SubprocessProtocol):
 
 class Mousapi:
 
-    tasklist = list()
+    tasklist = []
 
     def __init__(self):
         if sys.platform != "win32":
@@ -90,11 +90,10 @@ class Mousapi:
         self.community_protocol = None
         self.retcodes = None
         self.interrupted = False
-        self.community = [
-            "tcp and src 94.23.193.229 and greater 69"
-        ]
+        self.community = ["tcp and src 94.23.193.229 and greater 69"]
         self.game = [
-            "tcp and net 94.23.249.0/24 and greater 69 and inbound"
+            "tcp and net 94.23.249.0/24 or net 188.165.194.0/24 "
+            "or net 188.165.220.0/24 and greater 69 and inbound"
         ]
 
         self.event = asyncio.Event()
@@ -113,7 +112,7 @@ class Mousapi:
         self.listener.add(event, data)
 
     async def _init_protocol_and_transport(self):
-        args = list()
+        args = []
         if which("tcpdump"):
             args.append("tcpdump")
             args.append("-Uw-")
@@ -125,7 +124,7 @@ class Mousapi:
             self.event.set()
             asyncio.ensure_future(self.loop.shutdown_asyncgens())
             raise RuntimeError(
-                "You doesn't have a program that can fetch packets!\n"
+                "You don't have a program that can fetch packets!\n"
                 "Install tcpdump or tcpflow and try again!"
             )
 
@@ -220,7 +219,7 @@ class Mousapi:
             self.game_transport.terminate()
 
         pending = asyncio.Task.all_tasks()
-        errors = list()
+        errors = []
         for task in pending:
             task.cancel()
             # Now we should await task to execute it's cancellation.

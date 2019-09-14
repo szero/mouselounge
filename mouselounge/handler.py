@@ -72,8 +72,8 @@ class Managers(list):
 
 class Handler:
     def __init__(self, manager_candidates):
-        community_managers = list()
-        game_managers = list()
+        community_managers = []
+        game_managers = []
         for cand in manager_candidates:
             try:
                 inst = cand()

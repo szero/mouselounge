@@ -86,7 +86,7 @@ class WebManager(BaseManager, MPV_IPC_Client):
         now = time()
         if len(data) == 1:
             url = data[0]
-            rest = list()
+            rest = []
         else:
             # skip url verification if we are in the music room
             url = f"https://www.youtube.com/watch?v={data[0]}"
@@ -141,10 +141,10 @@ class WebManager(BaseManager, MPV_IPC_Client):
             "--cache-file=TMP",
             "--ontop",
             # "--autofit-larger=320x240",
-            "--autofit=320x240",
-            # "--geometry=25%:25%",
+            # "--autofit=320x240",
+            "--geometry=480x280",
             "--force-window=yes",
-            "--no-keepaspect",
+            # "--no-keepaspect",
             # "--no-keepaspect-window",
             # "--force-window-position",
             f"--input-conf={self.mpvcfg}",
