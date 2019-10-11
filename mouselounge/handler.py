@@ -63,24 +63,29 @@ class Managers(list):
 
     @staticmethod
     def valid(cand):
+        if cand is HelperManager:
+            return True
         if not inspect.isclass(cand) or not issubclass(cand, BaseManager):
             return False
-        if cand is BaseManager or cand is CommunityManager or cand is GameManager:
+        if cand is CommunityManager or cand is GameManager or cand is BaseManager:
             return False
         return True
 
 
 class Handler:
-    def __init__(self, manager_candidates):
+    def __init__(self, manager_candidates, args):
         community_managers = []
         game_managers = []
+        helper_manager = None
         for cand in manager_candidates:
             try:
-                inst = cand()
+                inst = cand(args=args)
                 if issubclass(cand, CommunityManager):
                     community_managers += (inst,)
                 if issubclass(cand, GameManager):
                     game_managers += (inst,)
+                if cand is HelperManager:
+                    helper_manager = cand
             except Exception:
                 LOGGER.exception("Failed to initialize managers %s", str(cand))
 
@@ -89,6 +94,7 @@ class Handler:
 
         self.community_managers = sorted(community_managers, key=sort)
         self.game_managers = sorted(game_managers, key=sort)
+        self.helper_manager = helper_manager
         LOGGER.debug(
             "Initialized community managers %s",
             ", ".join(repr(h) for h in self.community_managers),
@@ -103,12 +109,13 @@ class Handler:
         Every asyncio function will be added to both managers with its
         original name.
         """
-        for manager in self.community_managers + self.game_managers:
-            try:
-                for c in calls:
-                    setattr(manager, c.__name__, c)
-            except Exception:
-                LOGGER.exception("Failed to add asyncio call: %s", c.__name__)
+        # for manager in self.community_managers + self.game_managers:
+        try:
+            for c in calls:
+                setattr(self.helper_manager, c.__name__, c)
+                # setattr(manager, c.__name__, c)
+        except Exception:
+            LOGGER.exception("Failed to add asyncio call: %s", c.__name__)
 
     def community_data(self, data):
         for manager in self.community_managers:

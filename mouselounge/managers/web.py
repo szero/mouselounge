@@ -40,7 +40,7 @@ import isodate
 
 
 from ..utils import get_text, u8str, MPV_IPC_Client
-from .manager import BaseManager, CommunityManager, GameManager
+from .manager import HelperManager, CommunityManager, GameManager
 
 init(autoreset=True)
 
@@ -49,7 +49,8 @@ __all__ = ["XYoutuberCommunityManager", "XYoutuberGameManager"]
 LOGGER = logging.getLogger(__name__)
 
 
-class WebManager(BaseManager, MPV_IPC_Client):
+class WebManager(HelperManager):
+    # class WebManager(BaseManager, MPV_IPC_Client):
     needle = r"https?://(?:www\.)?(?:youtu\.be/\S+|youtube\.com/(?:v|watch|embed)\S+)"
     description = re.compile(r'itemprop="description"\s+content="(.+?)"', re.M | re.S)
     duration = re.compile(r'itemprop="duration"\s+content="(.+?)"', re.M | re.S)
@@ -59,13 +60,17 @@ class WebManager(BaseManager, MPV_IPC_Client):
     timeout = 60
     mpv_idle_timeout = 30.0 * 60.0
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        self.mpvc = MPV_IPC_Client()
+        for fname in filter(lambda f: f.find("receiver_callback") + 1, dir(self)):
+            self.mpvc.cbset.add(getattr(self, fname))
+
         if isinstance(self.needle, str):
             self.needle = self.needle, 0
         if self.needle and isinstance(self.needle[0], str):
             self.needle = re.compile(self.needle[0]), self.needle[1]
-        self.mpvcfg = self.create_tmp_filepath("mpvcfg")
+        self.mpvcfg = self.mpvc.create_tmp_filepath("mpvcfg")
         # kill mpv process after 30 mins of idling
         self.mpvtimeout = None
         # making this config allows stopping the video without
@@ -115,7 +120,7 @@ class WebManager(BaseManager, MPV_IPC_Client):
 
     def process_callback(self, response):
         self.mpv_started = False
-        self.close_socket()
+        self.mpvc.close_socket()
         if response[0]:
             if int(response[0]) == 4:
                 return True
@@ -130,8 +135,8 @@ class WebManager(BaseManager, MPV_IPC_Client):
     def start_mpv(self):
         if self.mpv_started:
             return
-        if os.access(self.socket_file, os.F_OK):
-            os.remove(self.socket_file)
+        if os.access(self.mpvc.socket_file, os.F_OK):
+            os.remove(self.mpvc.socket_file)
         self.run_process(
             self.process_callback,
             "mpv",
@@ -149,7 +154,7 @@ class WebManager(BaseManager, MPV_IPC_Client):
             # "--force-window-position",
             f"--input-conf={self.mpvcfg}",
             # "--no-video",
-            f"--input-ipc-server={self.socket_file}",
+            f"--input-ipc-server={self.mpvc.socket_file}",
             "--ytdl-raw-options=format="
             "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/webm/mp4/best",
         )
@@ -157,31 +162,18 @@ class WebManager(BaseManager, MPV_IPC_Client):
         self.connect_to_mpv()
 
     def connect_to_mpv(self):
-        if not self.is_socket_avaliable():
+        if not self.mpvc.is_socket_avaliable():
             self.call_later(1, self.connect_to_mpv)
             return
-        self.connect()
+        self.mpvc.connect()
 
     def send_data_to_mpv(self, data):
-        if not self.connected:
+        if not self.mpvc.connected:
             self.call_later(1, self.send_data_to_mpv, data)
             return
-        self.send_data(data)
+        self.mpvc.send_data(data)
 
-    def onurl(self, url, rest):
-        title, duration, desc = self.extract(
-            url, self.title, self.duration, self.description
-        )
-        if title is None:
-            return True
-        title = self.unescape(title.group(1))
-        if not title:
-            return True
-        duration_secs = 0.0
-        if duration:
-            duration_secs = isodate.parse_duration(duration.group(1))
-            duration = str(duration_secs)
-            duration_secs = duration_secs.total_seconds()
+    def process_videos_with_mpv(self, url, duration_secs):
         if self.mpvtimeout:
             self.mpvtimeout.cancel()
         self.start_mpv()
@@ -196,7 +188,24 @@ class WebManager(BaseManager, MPV_IPC_Client):
         self.mpvtimeout.setDaemon(True)
         self.mpvtimeout.start()
         self.send_data_to_mpv({"command": ["loadfile", url]})
+
+    def onurl(self, url, rest):
+        title, duration, desc = self.extract(
+            url, self.title, self.duration, self.description
+        )
+        if title is None:
+            return True
+        title = self.unescape(title.group(1))
+        if not title:
+            return True
         desc = self.unescape(desc.group(1))
+        duration_secs = 0.0
+        if duration:
+            duration_secs = isodate.parse_duration(duration.group(1))
+            duration = str(duration_secs)
+            duration_secs = duration_secs.total_seconds()
+        if not self.feedmode:
+            self.process_videos_with_mpv(url, duration_secs)
         print(
             strftime(
                 f"{Fore.LIGHTBLUE_EX}Post time: {Fore.RESET}%a, %d %b %Y, %H:%M:%S",
@@ -239,8 +248,8 @@ class WebManager(BaseManager, MPV_IPC_Client):
 
 
 class XYoutuberGameManager(WebManager, GameManager):
-
-    def receiver_callback(self, response):
+    @staticmethod
+    def receiver_callback(response):
         LOGGER.debug("from game: %s", response)
 
 

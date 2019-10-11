@@ -83,6 +83,7 @@ class MPV_IPC_Client:
         self.__fileset = set()
         self.__finalizer = finalize(self, self.clean_exit)
         self._receiving_task = Thread(daemon=True, target=self._receiver)
+        self.cbset = set()
 
     def _receiver(self):
         while self.connected:
@@ -96,13 +97,11 @@ class MPV_IPC_Client:
                 except json.decoder.JSONDecodeError:
                     LOGGER.exception("Error during decoding for line:\n%s", resp)
                     continue
-                self.receiver_callback(resp)
+                for cb in self.cbset:
+                    cb(resp)
                 error = resp.get("error")
                 if error and error != "success":
                     raise ConnectionError(error)
-
-    def receiver_callback(self, response):
-        pass
 
     def connect(self):
         try:

@@ -5,6 +5,7 @@ import sys
 import os
 import datetime as dt
 import signal
+import argparse
 
 from shutil import which
 
@@ -68,6 +69,29 @@ def debug_handler(_, frame):
     shell.interact(message)
 
 
+def parse_args():
+    desc = f"{__fulltitle__}"
+
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument(
+        "-f",
+        "--feedmode",
+        action="store_true",
+        default=False,
+        help="Feed mode. Played videos will appear in the terminal but they "
+        "won't be opened through mpv",
+    )
+    parser.add_argument(
+        "-d",
+        "--debug",
+        action="store_true",
+        default=False,
+        help="Debug your stuff with more verbose outputs",
+    )
+    args = parser.parse_args()
+    return args
+
+
 def sigchld_handler(_signum, _frame):
     """
     This function makes sure to reap all of the children
@@ -89,8 +113,8 @@ def main():
             print(f"Please install {prog} and try again.", file=sys.stderr)
             sys.exit(1)
 
-    # LOGGER.setLevel(logging.DEBUG)
-    LOGGER.setLevel(logging.INFO)
+    args = parse_args()
+    LOGGER.setLevel(logging.DEBUG if args.debug else logging.INFO)
 
     console = logging.StreamHandler()
 
@@ -109,7 +133,7 @@ def main():
     signal.signal(signal.SIGUSR2, debug_handler)
 
     managers = Managers()
-    handler = Handler(managers)
+    handler = Handler(managers, args)
 
     with Mousapi() as api:
         handler.add_asyncio_calls(api.loop.call_soon, api.loop.call_later)

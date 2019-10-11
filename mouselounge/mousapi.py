@@ -93,7 +93,8 @@ class Mousapi:
         self.community = ["tcp and src 94.23.193.229 and greater 69"]
         self.game = [
             "tcp and net 94.23.249.0/24 or net 188.165.194.0/24 "
-            "or net 188.165.220.0/24 and greater 69 and inbound"
+            "or net 188.165.220.0/24 "
+            "or net 46.105.100.0/24 and greater 69 and inbound"
         ]
 
         self.event = asyncio.Event()
