@@ -70,9 +70,7 @@ def debug_handler(_, frame):
 
 
 def parse_args():
-    desc = f"{__fulltitle__}"
-
-    parser = argparse.ArgumentParser(description=desc)
+    parser = argparse.ArgumentParser(description=__fulltitle__)
     parser.add_argument(
         "-f",
         "--feedmode",

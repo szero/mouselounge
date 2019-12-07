@@ -77,6 +77,7 @@ class MPV_IPC_Client:
 
     def __init__(self):
         self.connected = False
+        self.tmp_dir = os.environ.get("XDG_RUNTIME_DIR") or gettempdir()
         self.socket_file = self.create_tmp_filepath("mpvipcsocket", True)
         self._soc = socket.socket(socket.AF_UNIX)
         self._soc.settimeout(1)
@@ -126,16 +127,12 @@ class MPV_IPC_Client:
     def create_tmp_filepath(self, fname, is_socket=False):
         if not isinstance(fname, str):
             raise ValueError("Your filename must be a string")
-        tmp_dir = os.environ.get("XDG_RUNTIME_DIR")
-        if tmp_dir:
-            tmp_file = f"{tmp_dir}/{fname}_{rand_string(6)}"
+        if self.tmp_dir:
+            tmp_file = f"{self.tmp_dir}/{fname}_{rand_string(6)}"
             if not is_socket:
                 self.__fileset.add(tmp_file)
             return tmp_file
-        tmp_file = f"{gettempdir()}/{fname}_{rand_string(6)}"
-        if not is_socket:
-            self.__fileset.add(tmp_file)
-        return tmp_file
+        raise RuntimeError("Couldn't find any temp dirs on your system")
 
     def is_socket_avaliable(self):
         with suppress(FileNotFoundError):

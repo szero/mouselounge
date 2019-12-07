@@ -90,11 +90,11 @@ class Mousapi:
         self.community_protocol = None
         self.retcodes = None
         self.interrupted = False
-        self.community = ["tcp and src 94.23.193.229 and greater 69"]
+        self.community = ["tcp and src 94.23.193.229"]
         self.game = [
             "tcp and net 94.23.249.0/24 or net 188.165.194.0/24 "
             "or net 188.165.220.0/24 "
-            "or net 46.105.100.0/24 and greater 69 and inbound"
+            "or net 46.105.100.0/24 and inbound"
         ]
 
         self.event = asyncio.Event()
@@ -144,10 +144,10 @@ class Mousapi:
     async def _handle_community_server_data(self):
         await self.event.wait()
         async for line in self.community_protocol.yielder():
-            # LOGGER.debug("What's the community data: %s", line)
             for key in self.protohandler.keys():
                 match = search(key, line)
                 if match:
+                    LOGGER.debug("Matched community line for key %s: %s", key, line)
                     self.listener.enqueue(
                         PROTO[key], self.protohandler(key, line, match)
                     )
@@ -159,10 +159,10 @@ class Mousapi:
     async def _handle_game_server_data(self):
         await self.event.wait()
         async for line in self.game_protocol.yielder():
-            # LOGGER.debug("What's the game data: %s", line)
             for key in self.protohandler.keys():
                 match = search(key, line)
                 if match:
+                    LOGGER.debug("Matched game line for key %s: %s", key, line)
                     self.listener.enqueue(
                         PROTO[key], self.protohandler(key, line, match)
                     )
