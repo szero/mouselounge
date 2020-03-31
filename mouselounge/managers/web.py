@@ -120,14 +120,13 @@ class WebManager(HelperManager):
 
     def process_callback(self, response):
         self.mpv_started = False
-        self.mpvc.close_socket()
-        if response[0]:
-            if int(response[0]) == 4:
-                return True
+        self.mpvc.disconnect()
+        retcode, stdout, stderr = response
+        if retcode and int(retcode) != 4:
             LOGGER.error(
                 "Player returned non-zero status code of %s, error trace:\n%s",
-                response[0],
-                u8str(response[1]),
+                retcode,
+                u8str(f"{stdout}\n{stderr}"),
             )
             return False
         return True

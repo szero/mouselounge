@@ -90,7 +90,7 @@ class Mousapi:
         self.community_protocol = None
         self.retcodes = None
         self.interrupted = False
-        self.community = ["tcp and src 94.23.193.229"]
+        self.community = ["tcp and src 94.23.193.229 or src 51.75.130.180"]
         self.game = [
             "tcp and net 94.23.249.0/24 or net 188.165.194.0/24 "
             "or net 188.165.220.0/24 "

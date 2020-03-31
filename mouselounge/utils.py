@@ -144,12 +144,12 @@ class MPV_IPC_Client:
         Finalizer gets called when the instance is garbage collected,
         calling it explicitly is optional.
         """
-        self.close_socket()
+        self.disconnect()
         for file in self.__fileset:
             with suppress(FileNotFoundError):
                 os.remove(file)
 
-    def close_socket(self):
+    def disconnect(self):
         self.connected = False
         with suppress(RuntimeError):
             self._receiving_task.join()
