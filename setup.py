@@ -4,7 +4,13 @@ Set it up!!!!
 """
 
 import re
+
+from sys import version_info
 from setuptools import setup
+
+if version_info < (3, 6, 0):
+    raise RuntimeError("You must use at least python 3.6 to rock this thing")
+
 
 
 def version():
@@ -29,7 +35,6 @@ setup(
     packages=['mouselounge', 'mouselounge.managers'],
     include_package_data=True,
     entry_points={"console_scripts": ["mouselounge = mouselounge.__main__:run"]},
-    options={"build_scripts": {"executable": "/usr/bin/python3.7"}},
     classifiers=[
         "Development Status :: Beta",
         "Environment :: Console",

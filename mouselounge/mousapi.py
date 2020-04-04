@@ -93,7 +93,7 @@ class Mousapi:
         self.community = ["tcp and src 94.23.193.229 or src 51.75.130.180"]
         self.game = [
             "tcp and net 94.23.249.0/24 or net 188.165.194.0/24 "
-            "or net 188.165.220.0/24 "
+            "or net 188.165.220.0/24 or net 198.27.83.0/24 "
             "or net 46.105.100.0/24 and inbound"
         ]
 
