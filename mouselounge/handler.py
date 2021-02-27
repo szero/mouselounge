@@ -95,14 +95,16 @@ class Handler:
         self.community_managers = sorted(community_managers, key=sort)
         self.game_managers = sorted(game_managers, key=sort)
         self.helper_manager = helper_manager
-        LOGGER.debug(
-            "Initialized community managers %s",
-            ", ".join(repr(h) for h in self.community_managers),
-        )
-        LOGGER.debug(
-            "Initialized game managers %s",
-            ", ".join(repr(h) for h in self.game_managers),
-        )
+        if self.community_managers:
+            LOGGER.debug(
+                "Initialized community managers %s",
+                ", ".join(repr(h) for h in self.community_managers),
+            )
+        if self.game_managers:
+            LOGGER.debug(
+                "Initialized game managers %s",
+                ", ".join(repr(h) for h in self.game_managers),
+            )
 
     def add_asyncio_calls(self, *calls):
         """
@@ -113,7 +115,6 @@ class Handler:
         try:
             for c in calls:
                 setattr(self.helper_manager, c.__name__, c)
-                # setattr(manager, c.__name__, c)
         except Exception:
             LOGGER.exception("Failed to add asyncio call: %s", c.__name__)
 

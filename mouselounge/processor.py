@@ -23,6 +23,7 @@ THE SOFTWARE.
 """
 
 import logging
+import signal
 import multiprocessing as mp
 import subprocess
 
@@ -32,8 +33,6 @@ LOGGER = logging.getLogger(__name__)
 def _init_worker():
     try:
         # workaround for fucken pool workers being retarded
-        import signal
-
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         signal.signal(signal.SIGQUIT, signal.SIG_IGN)
     except Exception:

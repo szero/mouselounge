@@ -28,11 +28,10 @@ class PacketFetcherError(Exception):
 
 
 class PacketFetcherProtocol(asyncio.SubprocessProtocol):
-    def __init__(self, loop, name):
+    def __init__(self, loop):
         self.stopped = False
         self.error_data = str()
         self._loop = loop
-        self._name = name
         self._future = self._loop.create_future()
 
     def pipe_data_received(self, fd, data):
@@ -68,7 +67,7 @@ class PacketFetcherProtocol(asyncio.SubprocessProtocol):
         self._future.cancel()
 
     def process_exited(self):
-        LOGGER.debug("PacketFetcher %s instance exited.", self._name.capitalize())
+        LOGGER.debug("PacketFetcher game instance exited.")
         self.stopped = True
         self._future.cancel()
 
@@ -77,7 +76,7 @@ class Mousapi:
 
     tasklist = []
 
-    def __init__(self):
+    def __init__(self, args):
         if sys.platform != "win32":
             self.loop = asyncio.new_event_loop()
         else:
@@ -86,15 +85,12 @@ class Mousapi:
 
         self.game_transport = None
         self.game_protocol = None
-        self.community_transport = None
-        self.community_protocol = None
         self.retcodes = None
+        self.pending = None
         self.interrupted = False
-        self.community = ["tcp and src 94.23.193.229 or src 51.75.130.180"]
-        self.game = [
-            "tcp and net 94.23.249.0/24 or net 188.165.194.0/24 "
-            "or net 188.165.220.0/24 or net 198.27.83.0/24 "
-            "or net 46.105.100.0/24 and inbound"
+
+        self.fetcher_args = [
+            "tcp and net 94.23.193.0/24 or net 51.75.130.0/24 or net 37.187.29.0/24 and inbound"
         ]
 
         self.event = asyncio.Event()
@@ -129,46 +125,28 @@ class Mousapi:
                 "Install tcpdump or tcpflow and try again!"
             )
 
-        for i in "community", "game":
-            transport, protocol = await self.loop.subprocess_exec(
-                lambda x=i: PacketFetcherProtocol(self.loop, x),
-                *args + getattr(self, i),
-                stdout=asyncio.subprocess.PIPE,
-                stdin=None,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            setattr(self, f"{i}_transport", transport)
-            setattr(self, f"{i}_protocol", protocol)
+        transport, protocol = await self.loop.subprocess_exec(
+            lambda : PacketFetcherProtocol(self.loop),
+            *args + self.fetcher_args,
+            stdout=asyncio.subprocess.PIPE,
+            stdin=None,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        self.game_transport = transport
+        self.game_protocol = protocol
         self.event.set()
-
-    async def _handle_community_server_data(self):
-        await self.event.wait()
-        async for line in self.community_protocol.yielder():
-            for key in self.protohandler.keys():
-                match = search(key, line)
-                if match:
-                    LOGGER.debug("Matched community line for key %s: %s", key, line)
-                    self.listener.enqueue(
-                        PROTO[key], self.protohandler(key, line, match)
-                    )
-                    self.listener.process()
-        if self.community_protocol.error_data:
-            self.game_transport.close()
-            raise PacketFetcherError(self.community_protocol.error_data)
 
     async def _handle_game_server_data(self):
         await self.event.wait()
         async for line in self.game_protocol.yielder():
             for key in self.protohandler.keys():
-                match = search(key, line)
-                if match:
+                if match := search(key, line):
                     LOGGER.debug("Matched game line for key %s: %s", key, line)
                     self.listener.enqueue(
                         PROTO[key], self.protohandler(key, line, match)
                     )
                     self.listener.process()
         if self.game_protocol.error_data:
-            self.community_transport.close()
             raise PacketFetcherError(self.game_protocol.error_data)
 
     def __enter__(self):
@@ -183,12 +161,12 @@ class Mousapi:
     @property
     def global_stop(self):
         with suppress(AttributeError):
-            return self.community_protocol.stopped or self.game_protocol.stopped
+            return self.game_protocol.stopped
 
     @global_stop.setter
     def global_stop(self, value):
         with suppress(AttributeError):
-            self.community_protocol.stopped = self.game_protocol.stopped = value
+            self.game_protocol.stopped = value
 
     def _append_tasks(self):
         fnames_fobjs = inspect.getmembers(self, predicate=inspect.iscoroutinefunction)
@@ -203,7 +181,7 @@ class Mousapi:
         self._append_tasks()
 
         LOGGER.debug("Current coroutines: %s", self.tasklist)
-        self.retcodes, _pending = self.loop.run_until_complete(
+        self.retcodes, self.pending = self.loop.run_until_complete(
             asyncio.wait([fobj() for _fname, fobj in Mousapi.tasklist])
         )
 
@@ -216,12 +194,10 @@ class Mousapi:
         self.global_stop = True
 
         with suppress(ProcessLookupError, AttributeError):
-            self.community_transport.terminate()
             self.game_transport.terminate()
 
-        pending = asyncio.Task.all_tasks()
         errors = []
-        for task in pending:
+        for task in self.pending:
             task.cancel()
             # Now we should await task to execute it's cancellation.
             # Cancelled task raises asyncio.CancelledError that we can suppress:

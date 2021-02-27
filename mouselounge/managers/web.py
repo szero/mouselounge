@@ -44,7 +44,7 @@ from .manager import HelperManager, CommunityManager, GameManager
 
 init(autoreset=True)
 
-__all__ = ["XYoutuberCommunityManager", "XYoutuberGameManager"]
+__all__ = ["XYoutuberCommunityManager"]
 
 LOGGER = logging.getLogger(__name__)
 
@@ -126,7 +126,7 @@ class WebManager(HelperManager):
             LOGGER.error(
                 "Player returned non-zero status code of %s, error trace:\n%s",
                 retcode,
-                u8str(f"{stdout}\n{stderr}"),
+                u8str(stdout + b'\n' + stderr),
             )
             return False
         return True
@@ -163,13 +163,13 @@ class WebManager(HelperManager):
 
     def connect_to_mpv(self):
         if not self.mpvc.is_socket_avaliable():
-            self.call_later(1, self.connect_to_mpv)
+            self.call_later(0.2, self.connect_to_mpv)
             return
         self.mpvc.connect()
 
     def send_data_to_mpv(self, data):
         if not self.mpvc.connected:
-            self.call_later(1, self.send_data_to_mpv, data)
+            self.call_later(0.2, self.send_data_to_mpv, data)
             return
         self.mpvc.send_data(data)
 
@@ -247,10 +247,10 @@ class WebManager(HelperManager):
         return string
 
 
-class XYoutuberGameManager(WebManager, GameManager):
-    @staticmethod
-    def receiver_callback(response):
-        LOGGER.debug("from game: %s", response)
+# class XYoutuberGameManager(WebManager, GameManager):
+    # @staticmethod
+    # def receiver_callback(response):
+        # LOGGER.debug("from game: %s", response)
 
 
 class XYoutuberCommunityManager(WebManager, CommunityManager):

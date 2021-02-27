@@ -4,7 +4,6 @@ block_cipher = None
 
 
 a = Analysis(['mouselounge_bin.py'],
-             pathex=['/home/szeraton/Gites/mouselounge'],
              binaries=[],
              datas=[],
              hiddenimports=[],

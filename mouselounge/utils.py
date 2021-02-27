@@ -94,7 +94,7 @@ class MPV_IPC_Client:
                 continue
             for resp in [resp for resp in received if resp.strip()]:
                 try:
-                    resp = json.loads(resp, encoding="utf8")
+                    resp = json.loads(resp)
                 except json.decoder.JSONDecodeError:
                     LOGGER.exception("Error during decoding for line:\n%s", resp)
                     continue

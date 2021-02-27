@@ -17,7 +17,7 @@ directly. If you chose the second option, remember to include directories with b
 of the programs in the `PATH <https://en.wikipedia.org/wiki/PATH_(variable)>`_ variable.
 
 
-You must use ``python3.6`` or higher.
+You must use ``python3.9`` or higher. (Binary in release section should be independent from your python version).
 
 - `mpv <https://mpv.io/installation>`_
 - `youtube-dl <https://github.com/ytdl-org/youtube-dl#installation>`_
@@ -44,6 +44,9 @@ Requirements installation example for
     pacman -S mpv youtube-dl tcpdump
 
 Installing the main program:
+
+
+Try using binary in the releases section, if that doesn't work, go with the instructions below:
 
 ::
 

@@ -11,14 +11,8 @@ LOGGER = logging.getLogger(__name__)
 PROTO = {
     # Community values
     b"\x1a\x0c\x01": "play_vid_tribehouse",
-    # 0x01320101: "play_vid_tribehouse",
-    # 0x01430101: "play_vid_tribehouse",
     # Game values
-    # 0x0548000B: "play_vid_musicroom",
-    # 0x050A0001: "play_vid_on_musicroom_enter",
-    # 0x07010001: "play_vid_on_musicroom_enter",
-    # 0x071e0b01: "play_vid_on_musicroom_enter",
-    b"\x05\x48": "play_vid_musicroom",
+    # b"\x05\x48": "play_vid_musicroom",
 }
 
 
@@ -29,7 +23,6 @@ class ProtocolHandler(dict):
     Handling functions names must be exactly the same
     as values of PROTO dictionary and return tuples.
     """
-
     def __init__(self):
         super().__init__()
         method_names = dir(self)
@@ -44,9 +37,11 @@ class ProtocolHandler(dict):
     @staticmethod
     def play_vid_tribehouse(line, match):
         try:
-            if line[match.end()] != 104:
+            n = match.end()
+            if line[n] != 104:
                 return ()
-            link = line[match.end():].decode("ascii")
+            # 43 is lenght of youtube.com link, sometimes script seems to pull some gibberish?
+            link = line[n:(n+43)].decode("ascii")
         except (IndexError, UnicodeDecodeError) as ex:
             LOGGER.debug("%s line failed with:\n%s", line, ex)
             return ()

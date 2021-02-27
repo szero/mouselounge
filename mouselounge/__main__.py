@@ -8,6 +8,7 @@ import signal
 import argparse
 
 from shutil import which
+from time import sleep
 
 
 from .mousapi import Mousapi, PacketFetcherError
@@ -37,6 +38,7 @@ def debug_handler(_, frame):
     (carrige return), add this to your shell config: `stty icrnl`
     It will turn carrige return characters into new lines.
     """
+    # pylint: disable=import-outside-toplevel
     import code
     import traceback
 
@@ -101,8 +103,10 @@ def sigchld_handler(_signum, _frame):
         except ChildProcessError:
             return
         else:
-            if ret[1] > 0:
+            if ret[1] >= 0:
                 return
+        sleep(0.1)
+
 
 
 def main():
@@ -133,12 +137,10 @@ def main():
     managers = Managers()
     handler = Handler(managers, args)
 
-    with Mousapi() as api:
+    with Mousapi(args) as api:
         handler.add_asyncio_calls(api.loop.call_soon, api.loop.call_later)
         if handler.community_managers:
             api.add_listener("play_vid_tribehouse", handler.community_data)
-        if handler.game_managers:
-            api.add_listener("play_vid_musicroom", handler.game_data)
         api.listen()
 
 
