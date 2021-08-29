@@ -73,7 +73,7 @@ and just run ``mouselounge`` with sudo.
 Usage
 ~~~~~
 
-Run ``mouselounge`` in your terminal!
+Type ``mouselounge`` in your terminal or ``./mouselounge`` if you used the binary release !
 
 Thats it! Now you can paste your links inside music input box like you always did,
 but now, mpv window with given video will open and information about posted youtube
