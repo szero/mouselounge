@@ -59,13 +59,13 @@ packet capturing rights by issing the command below:
 
 ::
 
-    sudo setcap 'CAP_NET_RAW+eip CAP_NET_ADMIN+eip' "$(type tcpdump | cut -f3 -d' ')"
+    sudo setcap 'CAP_NET_RAW+eip CAP_NET_ADMIN+eip' "$(command -v tcpdump)"
 
 As for ``tcpflow``, the command looks like this this.
 
 ::
 
-    sudo setcap 'CAP_NET_RAW+eip CAP_NET_ADMIN+eip' "$(type tcpflow | cut -f3 -d' ')"
+    sudo setcap 'CAP_NET_RAW+eip CAP_NET_ADMIN+eip' "$(command -v tcpflow)"
 
 If you don't like giving programs extended rights permanently you can skip the steps above
 and just run ``mouselounge`` with sudo.

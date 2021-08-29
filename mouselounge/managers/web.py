@@ -40,7 +40,7 @@ import isodate
 
 
 from ..utils import get_text, u8str, MPV_IPC_Client
-from .manager import HelperManager, CommunityManager, GameManager
+from .manager import HelperManager, CommunityManager
 
 init(autoreset=True)
 
@@ -245,12 +245,6 @@ class WebManager(HelperManager):
             )
             string = re.sub(r"[\s+\n]+", " ", string.replace("\r\n", "\n"))
         return string
-
-
-# class XYoutuberGameManager(WebManager, GameManager):
-    # @staticmethod
-    # def receiver_callback(response):
-        # LOGGER.debug("from game: %s", response)
 
 
 class XYoutuberCommunityManager(WebManager, CommunityManager):

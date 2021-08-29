@@ -111,7 +111,6 @@ class Handler:
         Every asyncio function will be added to both managers with its
         original name.
         """
-        # for manager in self.community_managers + self.game_managers:
         try:
             for c in calls:
                 setattr(self.helper_manager, c.__name__, c)

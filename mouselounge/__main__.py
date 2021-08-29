@@ -88,6 +88,13 @@ def parse_args():
         default=False,
         help="Debug your stuff with more verbose outputs",
     )
+    parser.add_argument(
+        "-s",
+        "--status",
+        action="store_true",
+        default=False,
+        help="Print extra status information from your capture program on exit",
+    )
     args = parser.parse_args()
     return args
 

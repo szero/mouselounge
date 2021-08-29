@@ -38,6 +38,7 @@ from random import choices
 
 
 from requests import Session
+from bs4 import BeautifulSoup
 
 from ._version import __version__
 
@@ -55,7 +56,15 @@ requests.headers.update({"User-Agent": UA})
 
 @lru_cache(128)
 def get_text(url):
-    return requests.get(url).text
+    r = requests.get(url).text
+    if "itemprop" in r:
+        return r
+    post_builder = {}
+    soup = BeautifulSoup(r, "html.parser")
+    for i in soup.find_all("input"):
+        with suppress(KeyError):
+            post_builder.update({i["name"]: i["value"]})
+    return requests.post("https://consent.youtube.com/s", data=post_builder).text
 
 
 @lru_cache(512)

@@ -30,7 +30,8 @@ class PacketFetcherError(Exception):
 class PacketFetcherProtocol(asyncio.SubprocessProtocol):
     def __init__(self, loop):
         self.stopped = False
-        self.error_data = str()
+        self.error_data = ""
+        self.status_data = ""
         self._loop = loop
         self._future = self._loop.create_future()
 
@@ -42,10 +43,19 @@ class PacketFetcherProtocol(asyncio.SubprocessProtocol):
             for e in data.decode("utf8").splitlines():
                 self.error_data += f"{e}\n"
             # tcpflow prints status stuff into stderr so we have to ignore it
-            for status in "listening", "reportfilename":
-                if status in self.error_data.lower() or len(self.error_data) <= 2:
-                    self.error_data = str()
-                    break
+            for status in (
+                "tcpdump",
+                "listening",
+                "reportfilename",
+                "link-type",
+                "snapshot",
+                "packets",
+            ):
+                if status in (data := self.error_data.lower()):
+                    self.status_data += data
+                    self.error_data = ""
+            if self.error_data:
+                LOGGER.debug("PacketFetcher error data: %s", self.error_data)
 
     async def yielder(self):
         """
@@ -74,7 +84,7 @@ class PacketFetcherProtocol(asyncio.SubprocessProtocol):
 
 class Mousapi:
 
-    tasklist = []
+    taskset = set()
 
     def __init__(self, args):
         if sys.platform != "win32":
@@ -83,9 +93,10 @@ class Mousapi:
             self.loop = asyncio.ProactorEventLoop()
         asyncio.set_event_loop(self.loop)
 
+        self.args = args
         self.game_transport = None
         self.game_protocol = None
-        self.retcodes = None
+        self.done = None
         self.pending = None
         self.interrupted = False
 
@@ -126,7 +137,7 @@ class Mousapi:
             )
 
         transport, protocol = await self.loop.subprocess_exec(
-            lambda : PacketFetcherProtocol(self.loop),
+            lambda: PacketFetcherProtocol(self.loop),
             *args + self.fetcher_args,
             stdout=asyncio.subprocess.PIPE,
             stdin=None,
@@ -172,7 +183,7 @@ class Mousapi:
         fnames_fobjs = inspect.getmembers(self, predicate=inspect.iscoroutinefunction)
 
         for fname, fobj in fnames_fobjs:
-            Mousapi.tasklist.append((fname, fobj))
+            Mousapi.taskset.add((fname, self.loop.create_task(fobj())))
 
     def listen(self):
         if not len(self.listener):
@@ -180,9 +191,9 @@ class Mousapi:
 
         self._append_tasks()
 
-        LOGGER.debug("Current coroutines: %s", self.tasklist)
-        self.retcodes, self.pending = self.loop.run_until_complete(
-            asyncio.wait([fobj() for _fname, fobj in Mousapi.tasklist])
+        LOGGER.debug("Current coroutines: %s", self.taskset)
+        self.done, self.pending = self.loop.run_until_complete(
+            asyncio.wait({fob for _fname, fob in Mousapi.taskset})
         )
 
     def gracefull_close(self):
@@ -208,10 +219,15 @@ class Mousapi:
                     if not self.interrupted:
                         errors.append((print_coro(task), task.exception()))
         self.loop.close()
-        if self.retcodes is not None:
+        if self.done is not None:
+            for task in self.done:
+                if err := task.exception():
+                    errors.append((print_coro(task), err))
             for coro, ex in errors:
                 LOGGER.error("\n%s returned: %s", coro, ex)
 
+        if self.args.status and self.game_protocol.status_data:
+            LOGGER.info("Status from capture program:\n%s", self.game_protocol.status_data)
         LOGGER.info("See ya around")
         if self.interrupted:
             raise KeyboardInterrupt
